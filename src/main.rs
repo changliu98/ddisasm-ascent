@@ -332,26 +332,134 @@ ascent! {
     //     EA >= Beg,
     //     EA < End,
     //     block(Block2).
-    // block_next(Block, EA, Block2) <-- 
-    //     lsda_callsite_addresses(Beg, End, Block2),
-    //     block_last_instruction(Block, EA),
-    //     if EA >= Beg,
-    //     if EA < End,
-    //     block(Block2);
-    // value_reg(EALoad,Reg2,EALoad,"NONE",0,Immediate,1) :- 
-    // arch_store_immediate(EAStore,_,_,Immediate,RegBaseStore,"NONE",_,StackPosStore),
-    // stack_def_use_def_used(EAStore,[RegBaseStore,StackPosStore],EALoad,[RegBaseLoad,StackPosLoad],_),
-    // arch_memory_access("LOAD",EALoad,_,_,Reg2,RegBaseLoad,inlined_IndexReg_452,_,StackPosLoad),
-    // inlined_IndexReg_452 = "NONE",
-    // def_used_for_address(EALoad,Reg2,_).
+    block_next(block, ea, block2) <-- 
+        lsda_callsite_addresses(beg, end, block2),
+        block_last_instruction(block, ea),
+        if ea >= beg,
+        if ea < end,
+        block(block2);
 
-    // value_reg(EALoad, Reg2, EALoad, "NONE", 0, Immediate, 1) <-
-    //     arch_store_immediate(EAStore, _, _, Immediate, RegBaseStore, "NONE", _, StackPosStore),
-    //     stack_def_use_def_used(EAStore, (RegBaseStore, StackPosStore), EALoad, [RegBaseLoad, StackPosLoad], _),
-    //     arch_memory_access("LOAD", EALoad, _, _, Reg2, RegBaseLoad, inlined_IndexReg_452, _, StackPosLoad),
-    //     let inlined_IndexReg_452 = "NONE",
-    //     def_used_for_address(EALoad, Reg2, _);
+    // block_next(Block,EA,EA_next) :- 
+    //     block_last_instruction(Block,EA),
+    //     direct_jump(EA,EA_next),
+    //     !inter_procedural_edge(EA,EA_next).
+    block_next(block, ea, ea_next) <-- 
+        block_last_instruction(block, ea),
+        direct_jump(ea, ea_next),
+        !inter_procedural_edge(ea, ea_next);
 
+    // compare_and_jump_immediate(EA,EA,CC,Reg,0) :- 
+    //     instruction(EA,_,_,Operation,_,_,_,_,_,_),
+    //     arch_cmp_zero_operation(Operation),
+    //     arch_jump(EA),
+    //     arch_conditional(EA,CC),
+    //     instruction_get_op(EA,_,Op),
+    //     op_regdirect_contains_reg(Op,Reg).        
+    compare_and_jump_immediate(ea, ea, cc, reg, 0) <-- 
+        instruction(ea, _, _, operation, _, _, _, _, _, _),
+        arch_cmp_zero_operation(operation),
+        arch_jump(ea),
+        arch_conditional(ea, cc),
+        instruction_get_op(ea, _, op),
+        op_regdirect_contains_reg(op, reg);
+
+        compare_and_jump_immediate(ea, ea, cc, reg, 0) <-- 
+        instruction(ea, _, _, operation, _, _, _, _, _, _),
+        arch_cmp_zero_operation(operation),
+        arch_jump(ea),
+        arch_conditional(ea, cc),
+        instruction_get_op(ea, _, op),
+        register_access(ea, reg_in, "R"),
+        reg_map(reg_in, reg),
+        !op_regdirect_contains_reg(op, reg);
+
+    compare_and_jump_register(ea, ea, cc, reg1, reg2) <-- 
+        cmp_reg_to_reg(ea, reg1, reg2),
+        arch_jump(ea),
+        arch_conditional(ea, cc);
+
+    def_used_for_address(ea, reg, "PCRelative") <-- 
+        arch_pc_relative_addr(ea, reg, _);
+
+    got_relative_operand(ea, index, as(((as(target_ea, number) + addend) + adjustment), address) ) <-- 
+        relocation(tmp_53, "GOTOFF", symbol, addend, symbol_index, _, _),
+        relocation_adjustment_total(tmp_53, adjustment),
+        symbol(target_ea, _, _, _, _, _, _, symbol_index, symbol),
+        instruction_displacement_offset(ea, index, displacement_offset, _),
+        tmp_53 = (ea + displacement_offset);
+
+    jump_table_element_access(ea, size, as(table_start, address), as(reg_index, register)) <-- 
+        data_access(ea, _, "NONE", "NONE", reg_index, tmp_69, table_start, size),
+        reg_index != "NONE",
+        data_segment(beg, end),
+        as(table_start, address) >= beg,
+        as(table_start, address) <= end,
+        tmp_69 = as(size, number);
+
+    jump_table_element_access(ea, 1, as(table_start, address), as(reg_base, register)) <-- 
+        data_access(ea, _, "NONE", reg_base, "NONE", _, table_start, 1),
+        reg_base != "NONE",
+        data_segment(beg, end),
+        as(table_start, address) >= beg,
+        as(table_start, address) <= end;
+
+    reg_def_use_def_used(ea_def, var, ea_used, index) <-- 
+        reg_def_use_used(ea_used, var, index),
+        reg_def_use_block_last_def(ea_used, ea_def, var);
+
+    reg_def_use_live_var_used(block, var, var, ea_used, index, 0) <-- 
+        reg_def_use_used_in_block(block, ea_used, var, index),
+        !reg_def_use_block_last_def(ea_used, _, var);
+
+    reg_has_base_image(ea, reg) <-- 
+        base_address(image_base),
+        pc_relative_operand(ea, _, image_base),
+        code_in_block(ea, _),
+        reg_def_use_def(ea, reg),
+        instruction(ea, _, _, inlined_operation_773, _, _, _, _, _, _),
+        inlined_operation_773 = "LEA";
+
+    reg_has_base_image(ea_code, reg) <-- 
+        binary_format("PE"),
+        base_address(image_base),
+        code_in_block(ea_code, _),
+        arch_memory_access("LOAD", ea_code, _, _, _, _, _, _, _),
+        pc_relative_operand(ea_code, _, ea_data),
+        @functor_data_valid(ea_data, 8) = 1,
+        image_base = as(@functor_data_signed(ea_data, 8), address),
+        reg_def_use_def(ea_code, reg);
+
+    relative_jump_table_entry_candidate(ea, table_start, 1, ref, dest, 4, 0) <-- 
+        relative_address(ea, 1, table_start, ref, dest, "first"),
+        dest < table_start,
+        relative_address_start(ref, 4, _, _, _),
+        loaded_section(start, end, _),
+        ref >= start,
+        ref < end,
+        dest >= start,
+        dest < end;
+
+    stack_def_use_def_used(ea_def, var, ea_used, var, index) <-- 
+        stack_def_use_used(ea_used, var, index),
+        stack_def_use_block_last_def(ea_used, ea_def, var);
+
+    stack_def_use_live_var_used_in_block(block, ea_used, [base_reg, stack_pos], [base_reg, stack_pos], ea_used, index, 0) <-- 
+        stack_def_use_used_in_block(block, ea_used, [base_reg, stack_pos], index);
+
+    value_reg(ea, reg, ea, "NONE", 0, as(val, number), 1) <-- 
+        arch_pc_relative_addr(ea, reg, val),
+        track_register(reg);
+
+    value_reg(ea, reg, ea, "NONE", 0, (as((ea + size), number) + offset), 1) <-- 
+        code_in_block(ea, _),
+        arch_reg_arithmetic_operation(ea, reg, pc_reg, 1, offset),
+        instruction(ea, size, _, _, _, _, _, _, _, _),
+        !instruction_has_relocation(ea, _),
+        pc_reg = "RIP",
+        track_register(reg);
+
+    value_reg(ea, reg, ea_reg1, reg1, multiplier, offset, steps1) <= value_reg(ea, reg, ea_reg1, reg1, multiplier, offset, steps2) <-- 
+        steps2 <= steps1;
 
 
  }
