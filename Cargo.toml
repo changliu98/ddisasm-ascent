@@ -5,3 +5,6 @@ edition = "2021"
 
 [dependencies]
 ascent = {git = "https://github.com/StarGazerM/ascent-plusplus.git", branch="slog"}
+csv="1.0.0" 
+serde="1.0.193"
+itertools = "0.12"
