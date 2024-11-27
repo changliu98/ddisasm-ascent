@@ -41,7 +41,7 @@ type SymbolPosition=String;
 
 type StackVar=(Register, u64);
 type ConditionCode=String;
-
+type Number=i64;
 
 ascent! {
     struct DDisasm;
@@ -362,14 +362,14 @@ ascent! {
         arch_conditional(ea, cc),
         instruction_get_op(ea, _, op),
         op_regdirect_contains_reg(op, reg);
-
-        compare_and_jump_immediate(ea, ea, cc, reg, 0) <-- 
+        
+    compare_and_jump_immediate(ea, ea, cc, reg, 0) <-- 
         instruction(ea, _, _, operation, _, _, _, _, _, _),
         arch_cmp_zero_operation(operation),
         arch_jump(ea),
         arch_conditional(ea, cc),
         instruction_get_op(ea, _, op),
-        register_access(ea, reg_in, "R"),
+        register_access(ea, reg_in, "R".to_string()),
         reg_map(reg_in, reg),
         !op_regdirect_contains_reg(op, reg);
 
@@ -378,30 +378,33 @@ ascent! {
         arch_jump(ea),
         arch_conditional(ea, cc);
 
-    def_used_for_address(ea, reg, "PCRelative") <-- 
+    def_used_for_address(ea, reg, "PCRelative".to_string()) <-- 
         arch_pc_relative_addr(ea, reg, _);
 
-    got_relative_operand(ea, index, as(((as(target_ea, number) + addend) + adjustment), address) ) <-- 
-        relocation(tmp_53, "GOTOFF", symbol, addend, symbol_index, _, _),
-        relocation_adjustment_total(tmp_53, adjustment),
+    got_relative_operand(ea, index, (((*target_ea as Number) + addend) + adjustment) as Address) <-- 
         symbol(target_ea, _, _, _, _, _, _, symbol_index, symbol),
         instruction_displacement_offset(ea, index, displacement_offset, _),
-        tmp_53 = (ea + displacement_offset);
+        let tmp_53 = (ea + displacement_offset),
+        relocation_adjustment_total(tmp_53, adjustment),
+        relocation(tmp_53, "GOTOFF".to_string(), symbol, addend, symbol_index, _, _);
 
-    jump_table_element_access(ea, size, as(table_start, address), as(reg_index, register)) <-- 
-        data_access(ea, _, "NONE", "NONE", reg_index, tmp_69, table_start, size),
-        reg_index != "NONE",
-        data_segment(beg, end),
-        as(table_start, address) >= beg,
-        as(table_start, address) <= end,
-        tmp_69 = as(size, number);
+    // Todo: fix tmp69
+    // jump_table_element_access(ea, size, (*table_start as Address), (*reg_index as Register)) <-- 
+    //     data_access(ea, _, "NONE".to_string(), "NONE".to_string(), reg_index, tmp_69, table_start, size),
+    //     let tmp_69 = (size as Number),
 
-    jump_table_element_access(ea, 1, as(table_start, address), as(reg_base, register)) <-- 
-        data_access(ea, _, "NONE", reg_base, "NONE", _, table_start, 1),
-        reg_base != "NONE",
+    //     if reg_index != "NONE",
+    //     data_segment(beg, end),
+    //     if (table_start as Address) >= beg,
+    //     if (table_start as Address) <= end;
+
+    jump_table_element_access(ea, 1, (*table_start as Address), (reg_base_copy.to_string() as Register)) <-- 
+        data_access(ea, _, "NONE".to_string(), reg_base, "NONE".to_string(), _, table_start, 1),
+        if reg_base != "NONE",
+        let reg_base_copy = reg_base.clone(),
         data_segment(beg, end),
-        as(table_start, address) >= beg,
-        as(table_start, address) <= end;
+        if (*table_start as Address) >= *beg,
+        if (*table_start as Address) <= *end;
 
     reg_def_use_def_used(ea_def, var, ea_used, index) <-- 
         reg_def_use_used(ea_used, var, index),
@@ -412,55 +415,56 @@ ascent! {
         !reg_def_use_block_last_def(ea_used, _, var);
 
     reg_has_base_image(ea, reg) <-- 
+        let inlined_operation_773 = "LEA",
         base_address(image_base),
         pc_relative_operand(ea, _, image_base),
         code_in_block(ea, _),
         reg_def_use_def(ea, reg),
-        instruction(ea, _, _, inlined_operation_773, _, _, _, _, _, _),
-        inlined_operation_773 = "LEA";
+        instruction(ea, _, _, inlined_operation_773.to_string(), _, _, _, _, _, _);
 
+    // Todo @
     reg_has_base_image(ea_code, reg) <-- 
-        binary_format("PE"),
+        binary_format("PE".to_string()),
         base_address(image_base),
         code_in_block(ea_code, _),
-        arch_memory_access("LOAD", ea_code, _, _, _, _, _, _, _),
+        arch_memory_access("LOAD".to_string(), ea_code, _, _, _, _, _, _, _),
         pc_relative_operand(ea_code, _, ea_data),
-        @functor_data_valid(ea_data, 8) = 1,
-        image_base = as(@functor_data_signed(ea_data, 8), address),
+        // @functor_data_valid(ea_data, 8) = 1,
+        // image_base = as(@functor_data_signed(ea_data, 8), address),
         reg_def_use_def(ea_code, reg);
 
-    relative_jump_table_entry_candidate(ea, table_start, 1, ref, dest, 4, 0) <-- 
-        relative_address(ea, 1, table_start, ref, dest, "first"),
-        dest < table_start,
-        relative_address_start(ref, 4, _, _, _),
+    relative_jump_table_entry_candidate(ea, table_start, 1, refr, dest, 4, 0) <-- 
+        relative_address(ea, 1, table_start, refr, dest, "first".to_string()),
+        if dest < table_start,
+        relative_address_start(refr, 4, _, _, _),
         loaded_section(start, end, _),
-        ref >= start,
-        ref < end,
-        dest >= start,
-        dest < end;
+        if refr >= start,
+        if refr < end,
+        if dest >= start,
+        if dest < end;
 
     stack_def_use_def_used(ea_def, var, ea_used, var, index) <-- 
         stack_def_use_used(ea_used, var, index),
         stack_def_use_block_last_def(ea_used, ea_def, var);
 
-    stack_def_use_live_var_used_in_block(block, ea_used, [base_reg, stack_pos], [base_reg, stack_pos], ea_used, index, 0) <-- 
-        stack_def_use_used_in_block(block, ea_used, [base_reg, stack_pos], index);
+    stack_def_use_live_var_used_in_block(block, ea_used, x, x, ea_used, index, 0) <-- 
+        stack_def_use_used_in_block(block, ea_used, x, index);
 
-    value_reg(ea, reg, ea, "NONE", 0, as(val, number), 1) <-- 
+    value_reg(ea, reg, ea, "NONE".to_string(), 0, (*val as Number), 1) <-- 
         arch_pc_relative_addr(ea, reg, val),
         track_register(reg);
 
-    value_reg(ea, reg, ea, "NONE", 0, (as((ea + size), number) + offset), 1) <-- 
+    value_reg(ea, reg, ea, "NONE".to_string(), 0, (((ea + size) as Number) + offset), 1) <-- 
+        let pc_reg = "RIP",
         code_in_block(ea, _),
-        arch_reg_arithmetic_operation(ea, reg, pc_reg, 1, offset),
+        arch_reg_arithmetic_operation(ea, reg, pc_reg.to_string(), 1, offset),
         instruction(ea, size, _, _, _, _, _, _, _, _),
         !instruction_has_relocation(ea, _),
-        pc_reg = "RIP",
         track_register(reg);
 
-    value_reg(ea, reg, ea_reg1, reg1, multiplier, offset, steps1) <= value_reg(ea, reg, ea_reg1, reg1, multiplier, offset, steps2) <-- 
-        steps2 <= steps1;
-
+    // Todo: <=
+    // value_reg(ea, reg, ea_reg1, reg1, multiplier, offset, steps1) <= value_reg(ea, reg, ea_reg1, reg1, multiplier, offset, steps2) <-- 
+    //     steps2 <= steps1;
 
  }
 
