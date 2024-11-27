@@ -1,4 +1,6 @@
-use ascent::ascent;
+// use ascent::ascent;
+use ascent::*;
+use ascent::aggregators::*;
 use std::borrow::Borrow;
 use itertools::Itertools;
 
@@ -42,6 +44,7 @@ type ConditionCode=String;
 
 
 ascent! {
+    struct DDisasm;
 
     relation value_reg(Address, Register, Address, RegNullable, i64, i64, u64);
     relation base_relative_jump(Address, Address);
@@ -316,12 +319,12 @@ ascent! {
     // !inter_procedural_edge(EA,Block2),
     // block(Block2).
 
-    block(Block, EA, Block2) <-- 
-        block_last_instruction(Block, EA),
-        may_fallthrough(EA, Block2), 
-        // agg () = not() no_return_call_propagated(EA), 
-        agg () = not() inter_procedural_edge(EA, Block2),
-        block(Block2);
+    block_next(block, ea, block2) <-- 
+        block_last_instruction(block, ea),
+        may_fallthrough(ea, block2), 
+        !no_return_call_propagated(ea), 
+        !inter_procedural_edge(ea, block2),
+        block(block2);
 
     // block_next(Block,EA,Block2) :- 
     //     lsda_callsite_addresses(Beg,End,Block2),
@@ -354,7 +357,7 @@ ascent! {
  }
 
 fn main() {
-    let mut program = AscentProgram::default();
+    let mut program = DDisasm::default();
     let value_reg_size = program.value_reg.len();
     println!("value_reg size: {:?}", value_reg_size);
     let base_relative_jump_size = program.base_relative_jump.len();
