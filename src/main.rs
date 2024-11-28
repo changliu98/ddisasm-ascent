@@ -45,8 +45,7 @@ type Number=i64;
 
 ascent! {
     struct DDisasm;
-
-    relation value_reg(Address, Register, Address, RegNullable, i64, i64, u64);
+    relation value_reg(Address, Register, Address, RegNullable, Number, Number, u64);
     relation base_relative_jump(Address, Address);
     relation base_relative_operand(Address, OperandIndex, Address);
     relation block_next(Address, Address, Address);
@@ -99,10 +98,10 @@ ascent! {
     relation arch_conditional(Address, ConditionCode);
 
     // .decl arch_extend_load(EA:address,Signed:unsigned,SrcBits:unsigned)
-    relation arch_extend_load(Address, Register, u64, u64);
+    relation arch_extend_load(Address, u64, u64);
 
     // .decl arch_extend_reg(EA:address,Reg:register,Signed:unsigned,SrcBits:unsigned)
-    relation arch_extend_reg(Address, Register, Register, u64, u64);
+    relation arch_extend_reg(Address, Register, u64, u64);
 
     // .decl arch_jump(EA:address)
     relation arch_jump(Address);
@@ -466,7 +465,321 @@ ascent! {
     // value_reg(ea, reg, ea_reg1, reg1, multiplier, offset, steps1) <= value_reg(ea, reg, ea_reg1, reg1, multiplier, offset, steps2) <-- 
     //     steps2 <= steps1;
 
- }
+    base_relative_jump(ea_relop, ea) <-- 
+        reg_jump(ea, _),
+        base_relative_operation(ea_relop, ea);
+
+    base_relative_operand(ea_used, op_index, rva) <-- 
+        reg_has_base_image(ea_def, reg),
+        reg_def_use_def_used(ea_def, reg, ea_used, op_index),
+        possible_rva_operand(ea_used, op_index, rva);
+
+    base_relative_operand(ea_def2, op_index_access, rva) <-- 
+        reg_has_base_image(ea_def1, reg1),
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        data_access(ea_def2, op_index_access, "NONE".to_string(), "NONE".to_string(), _, 4, offset, _),
+        if *offset > 0,
+        reg_def_use_def_used(ea_def2, reg2, ea, _),
+        possible_rva_operand(ea_def2, op_index_access, rva),
+        data_access(ea, _, "NONE".to_string(), reg1, reg2, 1, _, _);
+
+    base_relative_operand(ea_def2, op_index_access, rva) <-- 
+        reg_has_base_image(ea_def1, reg1),
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        data_access(ea_def2, op_index_access, "NONE".to_string(), "NONE".to_string(), _, 4, offset, _),
+        if *offset > 0,
+        reg_def_use_def_used(ea_def2, reg2, ea, _),
+        possible_rva_operand(ea_def2, op_index_access, rva),
+        data_access(ea, _, "NONE".to_string(), reg2, reg1, 1, _, _);
+
+    base_relative_operand(ea_def1, op_index, (*value as Address)) <-- 
+        reg_has_base_image(ea_def2, reg2),
+        reg_def_use_def_used(ea_def2, reg2, ea, _),
+        arch_reg_reg_arithmetic_operation(ea, reg1, *reg1, &*reg2, 1, 0),
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        instruction_get_op(ea_def1, op_index, op),
+        instruction(ea_def1, _, _, inlined_operation_41, _, _, _, _, _, _),
+        if inlined_operation_41 == "LEA",
+        op_indirect(op, _, _, _, _, value, _),
+        if *value > 0;
+
+    base_relative_operand(ea_def1, op_index, (*value as Address)) <-- 
+        reg_has_base_image(ea_def2, reg2),
+        reg_def_use_def_used(ea_def2, reg2, ea, op_index_access),
+        data_access(ea, op_index_access, "NONE".to_string(), reg2, reg1, 1, 0, _),
+        !instruction(ea, _, _, "LEA".to_string(), _, _, _, _, _, _),
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        instruction_get_op(ea_def1, op_index, op),
+        instruction(ea_def1, _, _, inlined_operation_497, _, _, _, _, _, _),
+        if inlined_operation_497 == "LEA",
+        op_indirect(op, _, _, _, _, value, _),
+        if *value > 0;
+
+    base_relative_operand(ea_def1, op_index, (*value as Address)) <-- 
+        reg_has_base_image(ea_def2, reg2),
+        reg_def_use_def_used(ea_def2, reg2, ea, op_index_access),
+        data_access(ea, op_index_access, "NONE".to_string(), reg1, reg2, 1, 0, _),
+        !instruction(ea, _, _, "LEA".to_string(), _, _, _, _, _, _),
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        instruction_get_op(ea_def1, op_index, op),
+        instruction(ea_def1, _, _, inlined_operation_498, _, _, _, _, _, _),
+        if inlined_operation_498 == "LEA",
+        op_indirect(op, _, _, _, _, value, _),
+        if *value > 0;
+
+    base_relative_operation(ea_relop, ea_inst) <-- 
+        base_relative_operand(ea_relop, _, _),
+        reg_def_use_def_used(ea_relop, _, ea_inst, _);
+
+    base_relative_operation(ea_relop, ea_next) <-- 
+        base_relative_operand(ea_relop, _, _),
+        reg_def_use_def_used(ea_relop, _, ea_inst, _),
+        reg_def_use_def_used(ea_inst, _, ea_next, _);
+
+    block_next(block, ea, dest) <-- 
+        block_last_instruction(block, ea),
+        jump_table_target(ea, dest);
+
+    cmp_defines(ea_jmp, ea_dst, reg) <-- 
+        compare_and_jump_immediate(_, ea_jmp, "E".to_string(), reg, _),
+        direct_jump(ea_jmp, ea_dst);
+
+    cmp_defines(ea_jmp, ea_dst, reg) <-- 
+        compare_and_jump_immediate(_, ea_jmp, "NE".to_string(), reg, _),
+        may_fallthrough(ea_jmp, ea_dst);
+
+    compare_and_jump_immediate(ea_cmp, ea_jmp, cc, reg, immediate) <-- 
+        flags_and_jump_pair(ea_cmp, ea_jmp, cc),
+        instruction(ea_cmp, _, _, operation, _, _, _, _, _, _),
+        arch_cmp_operation(operation),
+        cmp_immediate_to_reg(ea_cmp, reg, _, immediate);
+
+    compare_and_jump_indirect(ea_cmp, ea_jmp, cc, indirect_op, immediate) <-- 
+        flags_and_jump_pair(ea_cmp, ea_jmp, cc),
+        instruction(ea_cmp, _, _, cmp_operation, _, _, _, _, _, _),
+        arch_cmp_operation(cmp_operation),
+        instruction_get_op(ea_cmp, _, indirect_op),
+        op_indirect(indirect_op, _, _, _, _, _, _),
+        instruction_get_op(ea_cmp, _, imm_op),
+        op_immediate(imm_op, immediate, _);
+
+    compare_and_jump_register(ea_cmp, ea_jmp, cc, reg1, reg2) <-- 
+        flags_and_jump_pair(ea_cmp, ea_jmp, cc),
+        cmp_reg_to_reg(ea_cmp, reg1, reg2);
+
+    const_value_reg_used(used_ea, ea_def, ea_reg_def, reg, value) <-- 
+        value_reg(ea_reg_def, reg, ea_def, "NONE".to_string(), 0, value, _),
+        reg_def_use_def_used(ea_reg_def, reg, used_ea, _);
+
+        def_used_for_address(ea_def, reg, type_here) <-- 
+        reg_def_use_def_used(ea_def, reg, ea, _),
+        reg_used_for(ea, reg, type_here);
+
+    def_used_for_address(ea_def, reg, type_here) <-- 
+        def_used_for_address(ea_used, _, type_here),
+        reg_def_use_def_used(ea_def, reg, ea_used, _);
+
+    def_used_for_address(ea_def, reg1, type_here) <-- 
+        def_used_for_address(ea_load, reg2, type_here),
+        arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, stack_pos_load),
+        arch_memory_access("STORE".to_string(), ea_store, _, _, reg1, reg_base_store, "NONE".to_string(), _, stack_pos_store),
+        stack_def_use_def_used(ea_store, (reg_base_store.clone(), *stack_pos_store as u64), ea_load, (reg_base_load.clone(), *stack_pos_load as u64), _),
+        reg_def_use_def_used(ea_def, reg1, ea_store, _);
+
+    flags_and_jump_pair(ea_flags, ea_jmp, cc) <-- 
+        arch_condition_flags_reg(reg),
+        reg_def_use_def_used(ea_flags, reg, ea_jmp, _),
+        arch_jump(ea_jmp),
+        arch_conditional(ea_jmp, cc);
+
+    got_relative_operand(ea3, index, ((*dest as Number)).try_into().unwrap()) <-- 
+        reg_has_got(ea1, reg1),
+        reg_def_use_def_used(ea1, reg1, ea2, _),
+        arch_reg_reg_arithmetic_operation(ea2, reg3, reg1, reg2, mult, 0),
+        reg_def_use_def_used(ea2, reg3, ea3, _),
+        op_immediate_and_reg(ea3, _, reg3, index, _),
+        value_reg(ea3, reg3, _, reg2, mult, dest, _);
+
+    got_relative_operand(ea, index, *got + (*offset as Address)) <-- 
+        reg_has_got(ea_base, reg),
+        reg_def_use_def_used(ea_base, reg, ea, index),
+        instruction_get_op(ea, index, op),
+        op_indirect_mapped(op, "NONE".to_string(), reg, _, _, offset, _),
+        if *offset != 0,
+        got_reference_pointer(got);
+
+    got_relative_operand(ea, index, got + (*offset as Address)) <-- 
+        reg_has_got(ea_base, reg),
+        reg_def_use_def_used(ea_base, reg, ea, index),
+        instruction_get_op(ea, index, op),
+        op_indirect_mapped(op, "NONE".to_string(), _, reg, 1, offset, _),
+        if *offset != 0,
+        got_reference_pointer(got);
+
+    jump_table_element_access(ea, size, table_start_addr, "NONE".to_string()) <-- 
+        pc_relative_operand(ea, 1, table_start_addr),
+        data_access(ea, _, _, _, _, _, _, size),
+        def_used_for_address(ea, _, type_here),
+        if *type_here == "Jump".to_string(),
+        reg_def_use_def_used(ea, reg1, ea_add, _),
+        reg_def_use_def_used(ea2, reg2, ea_add, _),
+        take_address(ea2, table_start_addr),
+        arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+        data_segment(beg, end),
+        if table_start_addr >= beg,
+        if table_start_addr <= end;
+
+    jump_table_element_access(ea, size, table_start_addr, "NONE".to_string()) <-- 
+        pc_relative_operand(ea, 1, table_start_addr),
+        data_access(ea, _, _, _, _, _, _, size),
+        def_used_for_address(ea, _, type_here),
+        if *type_here == "Call".to_string(),
+        reg_def_use_def_used(ea, reg1, ea_add, _),
+        reg_def_use_def_used(ea2, reg2, ea_add, _),
+        take_address(ea2, table_start_addr),
+        arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+        data_segment(beg, end),
+        if table_start_addr >= beg,
+        if table_start_addr <= end;
+
+    jump_table_element_access(ea, size, table_start_u64, reg_base) <-- 
+        data_access(ea, _, "NONE".to_string(), reg_base, reg_index, 1, 0, size),
+        if *reg_base != "NONE".to_string(),
+        if *reg_index != "NONE".to_string(),
+        const_value_reg_used(ea, _, _, reg_index, table_start),
+        let table_start_u64 = *table_start as Address,
+        data_segment(beg, end),
+        if table_start_u64 >= *beg,
+        if table_start_u64 <= *end;
+
+    jump_table_element_access(ea, size, ((base + offset) as Address), reg_index) <-- 
+        data_access(ea, _, "NONE".to_string(), reg_base, reg_index, _, offset, size),
+        if *reg_base != "NONE".to_string(),
+        const_value_reg_used(ea, _, _, reg_base, base),
+        data_segment(beg, end),
+        if *base + *offset >= *beg as Number,
+        if *base + *offset <= *end as Number;
+
+    jump_table_max(table_start, *table_start + (*value as Address) * *size) <-- 
+        jump_table_element_access(ea, size, table_start, reg_index),
+        code_in_block(ea, block),
+        !reg_def_use_block_last_def(ea, _, reg_index),
+        last_value_reg_limit(_, block, reg_index, value, "MAX".to_string(), _),
+        if *value >= 0;
+
+    jump_table_max(table_start, table_start + (*value as Address) * *size) <-- 
+        jump_table_element_access(ea, size, table_start, reg_index),
+        code_in_block(ea, _),
+        reg_def_use_block_last_def(ea, ea_def, reg_index),
+        last_value_reg_limit(ea_def, _, reg_index, value, "MAX".to_string(), _),
+        if *value >= 0;
+
+    // Todo Fix import lib functions
+    // jump_table_max(table_start2, table_start2 + functor_data_unsigned(generator_0, size1) * size2) <-- 
+    //     jump_table_element_access(ea1, size1, table_start1, _),
+    //     jump_table_max(table_start1, table_end1),
+    //     reg_def_use_def_used(ea1, reg, ea2, _),
+    //     if ea1 != ea2,
+    //     jump_table_element_access(ea2, size2, table_start2, reg),
+    //     if table_start1 != table_start2,
+    //     if functor_data_valid(generator_0, size1) == 1,
+    //     if generator_0 == range(table_start1, table_end1 + size1, size1);
+
+    jump_table_signed(table_start, signed) <-- 
+        jump_table_element_access(ea, size, table_start, _),
+        arch_extend_load(ea, signed, _tmp_71),
+        if *_tmp_71 == 8 * size;
+
+    jump_table_signed(table_start, signed) <-- 
+        jump_table_element_access(ea, size, table_start, _),
+        value_reg(ea_used, _, ea, reg, _, _, _),
+        arch_extend_reg(ea_used, reg, signed, _tmp_72),
+        if *_tmp_72 == 8 * size;
+
+    jump_table_signed(table_start, 0) <-- 
+        jump_table_element_access(ea, _, table_start, _),
+        instruction_get_dest_op(ea, _, dst_op),
+        op_regdirect(dst_op, def_reg),
+        reg_map(def_reg, def_reg_mapped),
+        value_reg(ea_used, _, ea, def_reg_mapped, _, _, _),
+        instruction_get_src_op(ea_used, _, op),
+        op_regdirect(op, used_reg),
+        reg_map(used_reg, def_reg_mapped),
+        arch_register_size_bytes(def_reg, def_size),
+        arch_register_size_bytes(used_reg, used_size),
+        if *used_size > *def_size;
+
+    jump_table_signed(table_start, 1) <-- 
+        jump_table_element_access(_, ptr_size, table_start, _),
+        if *ptr_size == 8;
+
+    jump_table_start(ea_jump, 4, image_base + value, image_base, 1) <-- 
+        base_address(image_base),
+        base_relative_jump(ea_base, ea_jump),
+        base_relative_operand(ea_base, _, value);
+
+    jump_table_start(ea_jump, size, table_start, (*base as Address), scale) <-- 
+        jump_table_element_access(ea, size, table_start, _),
+        value_reg(ea_add, reg_jump, ea, reg, scale, base, _),
+        if *reg != "NONE".to_string(),
+        reg_def_use_def_used(ea_add, reg_jump, ea_jump, _),
+        reg_call(ea_jump, _),
+        code_in_block(ea_jump, _);
+
+    jump_table_start(ea_jump, size, table_start, (*base as Address), scale) <-- 
+        jump_table_element_access(ea, size, table_start, _),
+        value_reg(ea_add, reg_jump, ea, reg, scale, base, _),
+        if *reg != "NONE".to_string(),
+        reg_def_use_def_used(ea_add, reg_jump, ea_jump, _),
+        reg_jump(ea_jump, _),
+        code_in_block(ea_jump, _);
+        jump_table_start(ea_jump, size, (*table_reference as Address), (*table_reference as Address), 1) <-- 
+        reg_jump(ea_jump, _),
+        code_in_block(ea_jump, _),
+        reg_def_use_def_used(ea_base, reg, ea_jump, _),
+        instruction(ea_base, _, _, inlined_operation_591, _, _, _, _, _, _),
+        if *inlined_operation_591 == "ADD".to_string(),
+        jump_table_element_access(ea_base, size, _tmp_73, _),
+        const_value_reg_used(ea_base, _, _, reg, table_reference),
+        if *_tmp_73 == (*table_reference as Address);
+
+    jump_table_start(ea_jump, size, (*table_reference as Address), (*table_reference as Address), -1) <-- 
+        reg_jump(ea_jump, _),
+        code_in_block(ea_jump, _),
+        reg_def_use_def_used(ea_base, reg, ea_jump, _),
+        instruction(ea_base, _, _, inlined_operation_593, _, _, _, _, _, _),
+        if *inlined_operation_593 == "SUB".to_string(),
+        jump_table_element_access(ea_base, size, _tmp_74, _),
+        const_value_reg_used(ea_base, _, _, reg, table_reference),
+        if *_tmp_74 == (*table_reference as Address);
+
+    jump_table_start(ea_jump, size, table_start, (*table_reference as Address), 1) <-- 
+        reg_jump(ea_jump, _),
+        code_in_block(ea_jump, _),
+        reg_def_use_def_used(ea_base, reg, ea_jump, _),
+        instruction(ea_base, _, _, inlined_operation_590, _, _, _, _, _, _),
+        if *inlined_operation_590 == "ADD".to_string(),
+        jump_table_element_access(ea_base, size, table_start, _),
+        const_value_reg_used(ea_base, _, _, reg, table_reference),
+        code_in_block(_tmp_153, _),
+        if *_tmp_153 == (*table_reference as Address);
+
+    jump_table_start(ea_jump, size, table_start, (*table_reference as Address), -1) <-- 
+        reg_jump(ea_jump, _),
+        code_in_block(ea_jump, _),
+        reg_def_use_def_used(ea_base, reg, ea_jump, _),
+        instruction(ea_base, _, _, inlined_operation_592, _, _, _, _, _, _),
+        if *inlined_operation_592 == "SUB".to_string(),
+        jump_table_element_access(ea_base, size, table_start, _),
+        const_value_reg_used(ea_base, _, _, reg, table_reference),
+        code_in_block(_tmp_154, _),
+        if *_tmp_154 == (*table_reference as Address);
+
+    jump_table_target(ea, dest) <-- 
+        jump_table_start(ea, size, table_start, _, _),
+        relative_jump_table_entry_candidate(_, table_start, size, _, dest, _, _);
+
+}
 
 fn main() {
     let mut program = DDisasm::default();
@@ -586,13 +899,13 @@ fn main() {
         .collect_vec();
 
     // .input arch_extend_load(filename="arch.extend_load.facts")
-    program.arch_extend_load = read_csv::<(Address, Register, u64, u64)>(&get_path("arch.extend_load.facts"))
-        .map(|(x, y, z, xx)| (x, y, z, xx))
+    program.arch_extend_load = read_csv::<(Address, u64, u64)>(&get_path("arch.extend_load.facts"))
+        .map(|(x, y, z)| (x, y, z))
         .collect_vec();
 
     // .input arch_extend_reg(filename="arch.extend_reg.facts")
-    program.arch_extend_reg = read_csv::<(Address, Register, Register, u64, u64)>(&get_path("arch.extend_reg.facts"))
-        .map(|(x, y, z, xx, xxx)| (x, y, z, xx, xxx))
+    program.arch_extend_reg = read_csv::<(Address, Register, u64, u64)>(&get_path("arch.extend_reg.facts"))
+        .map(|(x, y, z, xx)| (x, y, z, xx))
         .collect_vec();
 
     // .input arch_jump(filename="arch.jump.facts")
@@ -1053,5 +1366,13 @@ fn main() {
         .map(|(a,)| (a,))
         .collect_vec();
 
+    // .printsize reg_jump
+    // .printsize base_relative_operation
+
+    let reg_jump_size = program.reg_jump.len();
+    println!("reg_jump size: {:?}", reg_jump_size);
+
+    let base_relative_operation_size = program.base_relative_operation.len();
+    println!("base_relative_operation size: {:?}", base_relative_operation_size);
 
 }
