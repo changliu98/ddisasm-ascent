@@ -1,9 +1,6 @@
 // use ascent::ascent;
 use ascent::*;
-use ascent::aggregators::*;
-use std::borrow::Borrow;
 use itertools::Itertools;
-
 
 fn read_csv<T>(path: &str) -> impl Iterator<Item = T>
 where
@@ -21,11 +18,6 @@ where
 }
 
 
-fn leak<T: Borrow<TB> + 'static, TB: ?Sized>(x: T) -> &'static TB {
-    let leaked: &'static T = Box::leak(Box::new(x));
-    leaked.borrow()
- }
-
 type InputReg=String;
 type RegNullable=String;
 type Register=String;
@@ -42,6 +34,15 @@ type SymbolPosition=String;
 type StackVar=(Register, u64);
 type ConditionCode=String;
 type Number=i64;
+
+use libc::size_t;
+
+#[link(name = "functors")]
+extern "C" {
+    fn functor_data_valid(ea: u64, size: size_t) -> u64;
+    fn functor_data_signed(ea: u64, size: size_t) -> i64;
+    fn functor_data_unsigned(ea: u64, size: size_t) -> i64;
+}
 
 ascent! {
     struct DDisasm;
@@ -383,19 +384,18 @@ ascent! {
     got_relative_operand(ea, index, (((*target_ea as Number) + addend) + adjustment) as Address) <-- 
         symbol(target_ea, _, _, _, _, _, _, symbol_index, symbol),
         instruction_displacement_offset(ea, index, displacement_offset, _),
-        let tmp_53 = (ea + displacement_offset),
+        let tmp_53 = ea + displacement_offset,
         relocation_adjustment_total(tmp_53, adjustment),
         relocation(tmp_53, "GOTOFF".to_string(), symbol, addend, symbol_index, _, _);
 
-    // Todo: fix tmp69
-    // jump_table_element_access(ea, size, (*table_start as Address), (*reg_index as Register)) <-- 
-    //     data_access(ea, _, "NONE".to_string(), "NONE".to_string(), reg_index, tmp_69, table_start, size),
-    //     let tmp_69 = (size as Number),
-
-    //     if reg_index != "NONE",
-    //     data_segment(beg, end),
-    //     if (table_start as Address) >= beg,
-    //     if (table_start as Address) <= end;
+    // TODO: why mult is same as size?
+    jump_table_element_access(ea, size, (*table_start as Address), (reg_index.clone() as Register)) <-- 
+        data_access(ea, _, "NONE".to_string(), "NONE".to_string(), reg_index, mult, table_start, size),
+        if *mult as u64 == *size,
+        if reg_index != "NONE",
+        data_segment(beg, end),
+        if *table_start as Address >= *beg,
+        if *table_start as Address <= *end;
 
     jump_table_element_access(ea, 1, (*table_start as Address), (reg_base_copy.to_string() as Register)) <-- 
         data_access(ea, _, "NONE".to_string(), reg_base, "NONE".to_string(), _, table_start, 1),
@@ -421,15 +421,14 @@ ascent! {
         reg_def_use_def(ea, reg),
         instruction(ea, _, _, inlined_operation_773.to_string(), _, _, _, _, _, _);
 
-    // Todo @
     reg_has_base_image(ea_code, reg) <-- 
         binary_format("PE".to_string()),
         base_address(image_base),
         code_in_block(ea_code, _),
         arch_memory_access("LOAD".to_string(), ea_code, _, _, _, _, _, _, _),
         pc_relative_operand(ea_code, _, ea_data),
-        // @functor_data_valid(ea_data, 8) = 1,
-        // image_base = as(@functor_data_signed(ea_data, 8), address),
+        if unsafe {functor_data_valid(*ea_data, 8) == 1},
+        if *image_base == unsafe {functor_data_signed(*ea_data, 8)} as Address,
         reg_def_use_def(ea_code, reg);
 
     relative_jump_table_entry_candidate(ea, table_start, 1, refr, dest, 4, 0) <-- 
@@ -674,16 +673,16 @@ ascent! {
         last_value_reg_limit(ea_def, _, reg_index, value, "MAX".to_string(), _),
         if *value >= 0;
 
-    // Todo Fix import lib functions
-    // jump_table_max(table_start2, table_start2 + functor_data_unsigned(generator_0, size1) * size2) <-- 
-    //     jump_table_element_access(ea1, size1, table_start1, _),
-    //     jump_table_max(table_start1, table_end1),
-    //     reg_def_use_def_used(ea1, reg, ea2, _),
-    //     if ea1 != ea2,
-    //     jump_table_element_access(ea2, size2, table_start2, reg),
-    //     if table_start1 != table_start2,
-    //     if functor_data_valid(generator_0, size1) == 1,
-    //     if generator_0 == range(table_start1, table_end1 + size1, size1);
+    jump_table_max(table_start2, (*table_start2 as i64 + fdu) as u64) <-- 
+        jump_table_element_access(ea1, size1, table_start1, _),
+        jump_table_max(table_start1, table_end1),
+        reg_def_use_def_used(ea1, reg, ea2, _),
+        if ea1 != ea2,
+        jump_table_element_access(ea2, size2, table_start2, reg),
+        if table_start1 != table_start2,
+        for generator_0 in (*table_start1..(table_end1 + size1)).step_by(*size1 as usize),
+        if unsafe {functor_data_valid(generator_0, *size1 as size_t) } == 1,
+        let fdu = unsafe { functor_data_unsigned(generator_0, *size1 as size_t) } * (*size2) as i64 ;
 
     jump_table_signed(table_start, signed) <-- 
         jump_table_element_access(ea, size, table_start, _),
