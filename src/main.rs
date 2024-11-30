@@ -1,4 +1,6 @@
 // use ascent::ascent;
+use std::process::Command;
+
 use ascent::*;
 use itertools::Itertools;
 
@@ -6,6 +8,7 @@ fn read_csv<T>(path: &str) -> impl Iterator<Item = T>
 where
    for<'de> T: serde::de::Deserialize<'de>,
 {
+    println!("Reading CSV file: {}", path);
    csv::ReaderBuilder::new()
       .delimiter(b'\t')
       .has_headers(false)
@@ -26,7 +29,6 @@ type OperandCode=u64;
 type OperandIndex=u64;
 
 type LimitType=String;
-type BlockType=String;
 
 type AccessMode=String;
 type SymbolPosition=String;
@@ -45,6 +47,7 @@ extern "C" {
 }
 
 ascent! {
+    #![measure_rule_times]
     struct DDisasm;
     relation value_reg(Address, Register, Address, RegNullable, Number, Number, u64);
     relation base_relative_jump(Address, Address);
@@ -782,82 +785,23 @@ ascent! {
 
 fn main() {
     let mut program = DDisasm::default();
-    let value_reg_size = program.value_reg.len();
-    println!("value_reg size: {:?}", value_reg_size);
-    let base_relative_jump_size = program.base_relative_jump.len();
-    println!("base_relative_jump size: {:?}", base_relative_jump_size);
-    let base_relative_operand_size = program.base_relative_operand.len();
-    println!("base_relative_operand size: {:?}", base_relative_operand_size);
-    let block_next_size = program.block_next.len();
-    println!("block_next size: {:?}", block_next_size);
-    let cmp_defines_size = program.cmp_defines.len();
-    println!("cmp_defines size: {:?}", cmp_defines_size);
-    let compare_and_jump_immediate_size = program.compare_and_jump_immediate.len();
-    println!("compare_and_jump_immediate size: {:?}", compare_and_jump_immediate_size);
-    let compare_and_jump_indirect_size = program.compare_and_jump_indirect.len();
-    println!("compare_and_jump_indirect size: {:?}", compare_and_jump_indirect_size);
-    let compare_and_jump_register_size = program.compare_and_jump_register.len();
-    println!("compare_and_jump_register size: {:?}", compare_and_jump_register_size);
-    let const_value_reg_used_size = program.const_value_reg_used.len();
-    println!("const_value_reg_used size: {:?}", const_value_reg_used_size);
-    let def_used_for_address_size = program.def_used_for_address.len();
-    println!("def_used_for_address size: {:?}", def_used_for_address_size);
-    let flags_and_jump_pair_size = program.flags_and_jump_pair.len();
-    println!("flags_and_jump_pair size: {:?}", flags_and_jump_pair_size);
-    let got_relative_operand_size = program.got_relative_operand.len();
-    println!("got_relative_operand size: {:?}", got_relative_operand_size);
-    let jump_table_element_access_size = program.jump_table_element_access.len();
-    println!("jump_table_element_access size: {:?}", jump_table_element_access_size);
-    let jump_table_max_size = program.jump_table_max.len();
-    println!("jump_table_max size: {:?}", jump_table_max_size);
-    let jump_table_signed_size = program.jump_table_signed.len();
-    println!("jump_table_signed size: {:?}", jump_table_signed_size);
-    let jump_table_start_size = program.jump_table_start.len();
-    println!("jump_table_start size: {:?}", jump_table_start_size);
-    let jump_table_target_size = program.jump_table_target.len();
-    println!("jump_table_target size: {:?}", jump_table_target_size);
-    let last_value_reg_limit_size = program.last_value_reg_limit.len();
-    println!("last_value_reg_limit size: {:?}", last_value_reg_limit_size);
-    let reg_def_use_def_used_size = program.reg_def_use_def_used.len();
-    println!("reg_def_use_def_used size: {:?}", reg_def_use_def_used_size);
-    let reg_def_use_live_var_at_block_end_size = program.reg_def_use_live_var_at_block_end.len();
-    println!("reg_def_use_live_var_at_block_end size: {:?}", reg_def_use_live_var_at_block_end_size);
-    let reg_def_use_live_var_at_prior_used_size = program.reg_def_use_live_var_at_prior_used.len();
-    println!("reg_def_use_live_var_at_prior_used size: {:?}", reg_def_use_live_var_at_prior_used_size);
-    let reg_def_use_live_var_used_size = program.reg_def_use_live_var_used.len();
-    println!("reg_def_use_live_var_used size: {:?}", reg_def_use_live_var_used_size);
-    let reg_def_use_return_val_used_size = program.reg_def_use_return_val_used.len();
-    println!("reg_def_use_return_val_used size: {:?}", reg_def_use_return_val_used_size);
-    let reg_has_base_image_size = program.reg_has_base_image.len();
-    println!("reg_has_base_image size: {:?}", reg_has_base_image_size);
-    let reg_has_got_size = program.reg_has_got.len();
-    println!("reg_has_got size: {:?}", reg_has_got_size);
-    let reg_reg_arithmetic_operation_defs_size = program.reg_reg_arithmetic_operation_defs.len();
-    println!("reg_reg_arithmetic_operation_defs size: {:?}", reg_reg_arithmetic_operation_defs_size);
-    let relative_jump_table_entry_candidate_size = program.relative_jump_table_entry_candidate.len();
-    println!("relative_jump_table_entry_candidate size: {:?}", relative_jump_table_entry_candidate_size);
-    let stack_def_use_def_used_size = program.stack_def_use_def_used.len();
-    println!("stack_def_use_def_used size: {:?}", stack_def_use_def_used_size);
-    let stack_def_use_live_var_at_block_end_size = program.stack_def_use_live_var_at_block_end.len();
-    println!("stack_def_use_live_var_at_block_end size: {:?}", stack_def_use_live_var_at_block_end_size);
-    let stack_def_use_live_var_at_prior_used_size = program.stack_def_use_live_var_at_prior_used.len();
-    println!("stack_def_use_live_var_at_prior_used size: {:?}", stack_def_use_live_var_at_prior_used_size);
-    let stack_def_use_live_var_used_size = program.stack_def_use_live_var_used.len();
-    println!("stack_def_use_live_var_used size: {:?}", stack_def_use_live_var_used_size);
-    let stack_def_use_live_var_used_in_block_size = program.stack_def_use_live_var_used_in_block.len();
-    println!("stack_def_use_live_var_used_in_block size: {:?}", stack_def_use_live_var_used_in_block_size);
-    let tls_desc_call_size = program.tls_desc_call.len();
-    println!("tls_desc_call size: {:?}", tls_desc_call_size);
-    let tls_get_addr_size = program.tls_get_addr.len();
-    println!("tls_get_addr size: {:?}", tls_get_addr_size);
-    let value_reg_edge_size = program.value_reg_edge.len();
-    println!("value_reg_edge size: {:?}", value_reg_edge_size);
-    let value_reg_limit_size = program.value_reg_limit.len();
-    println!("value_reg_limit size: {:?}", value_reg_limit_size);
-    let value_reg_unsupported_size = program.value_reg_unsupported.len();
-    println!("value_reg_unsupported size: {:?}", value_reg_unsupported_size);    
 
-    let path = "./data/";
+    // arguments
+    // dd_ascent <db_dir> <binary_path>
+    let db_dir = std::env::args().nth(1).unwrap();
+    let binary_path = std::env::args().nth(2).unwrap();
+    // run command using rust's std::process::Command
+    // ddisasm -j 12 --debug-dir <db_dir> <binary_path>
+    let _output = Command::new("ddisasm")
+        .arg("-j")
+        .arg("12")
+        .arg("--debug-dir")
+        .arg(&db_dir)
+        .arg(&binary_path)
+        .output()
+        .expect("failed to execute process");
+
+    let path = format!("{}/disassembly/", db_dir);
     let get_path = |x: &str| format!("{path}{x}");
 
     program.adjusts_stack_in_block = read_csv::<(Address, Address, Register, i64)>(&get_path("adjusts_stack_in_block.facts"))
@@ -985,37 +929,6 @@ fn main() {
         .map(|(a,)| (a,))
         .collect_vec();
 
-    // .input block_last_instruction
-    // .input block_instruction_next
-    // .input call_tls_get_addr
-    // .input cmp_immediate_to_reg
-    // .input cmp_reg_to_reg
-    // .input code_in_block
-    // .input conditional_jump
-    // .input data_access
-    // .input data_segment
-    // .input defined_symbol
-    // .input direct_call
-    // .input direct_jump
-    // .input got_reference_pointer
-    // .input got_section
-    // .input instruction
-    // .input instruction_displacement_offset
-    // .input instruction_get_dest_op
-    // .input instruction_get_op
-    // .input instruction_get_src_op
-    // .input instruction_has_relocation
-    // .input inter_procedural_edge
-    // .input is_padding
-    // .input is_xor_reset
-    // .input limit_reg_op
-    // .input limit_type_map
-    // .input loaded_section
-    // .input lsda_callsite_addresses
-    // .input may_fallthrough
-    // .input next
-    // .input no_return_call_propagated
-
     program.block_last_instruction = read_csv::<(Address, Address)>(&get_path("block_last_instruction.facts"))
         .map(|(a, b)| (a, b))
         .collect_vec();
@@ -1135,24 +1048,6 @@ fn main() {
     program.no_return_call_propagated = read_csv::<(Address,)>(&get_path("no_return_call_propagated.facts"))
         .map(|(a,)| (a,))
         .collect_vec();
-
-
-    // .input no_value_reg_limit
-    // .input op_immediate
-    // .input op_immediate_and_reg
-    // .input op_indirect
-    // .input op_indirect_mapped
-    // .input op_regdirect
-    // .input op_regdirect_contains_reg
-    // .input pc_relative_operand
-    // .input possible_rva_operand
-    // .input reg_call
-    // .input reg_def_use_block_last_def(filename="reg_def_use.block_last_def.facts")
-    // .input reg_def_use_def(filename="reg_def_use.def.facts")
-    // .input reg_def_use_defined_in_block(filename="reg_def_use.defined_in_block.facts")
-    // .input reg_def_use_flow_def(filename="reg_def_use.flow_def.facts")
-    // .input reg_def_use_live_var_def(filename="reg_def_use.live_var_def.facts")
-    // .input reg_def_use_ref_in_block(filename="reg_def_use.ref_in_block.facts")
     
     program.no_value_reg_limit = read_csv::<(Address,)>(&get_path("no_value_reg_limit.facts"))
     .map(|(a,)| (a,))
@@ -1217,37 +1112,6 @@ fn main() {
     program.reg_def_use_ref_in_block = read_csv::<(Address, Register)>(&get_path("reg_def_use.ref_in_block.facts"))
         .map(|(a, b)| (a, b))
         .collect_vec();
-
-
-    // .input reg_def_use_return_block_end(filename="reg_def_use.return_block_end.facts")
-    // .input reg_def_use_used(filename="reg_def_use.used.facts")
-    // .input reg_def_use_used_in_block(filename="reg_def_use.used_in_block.facts")
-    // .input reg_jump
-    // .input reg_map
-    // .input reg_used_for
-    // .input register_access
-    // .input relative_address
-    // .input relative_address_start
-    // .input relocation
-    // .input relocation_adjustment_total
-    // .input simple_data_access_pattern
-    // .input stack_base_reg_move
-    // .input stack_def_use_block_last_def(filename="stack_def_use.block_last_def.facts")
-    // .input stack_def_use_def(filename="stack_def_use.def.facts")
-    // .input stack_def_use_defined_in_block(filename="stack_def_use.defined_in_block.facts")
-    // .input stack_def_use_live_var_def(filename="stack_def_use.live_var_def.facts")
-    // .input stack_def_use_moves_limit(filename="stack_def_use.moves_limit.facts")
-    // .input stack_def_use_ref_in_block(filename="stack_def_use.ref_in_block.facts")
-    // .input stack_def_use_used(filename="stack_def_use.used.facts")
-    // .input stack_def_use_used_in_block(filename="stack_def_use.used_in_block.facts")
-    // .input step_limit
-    // .input symbol
-    // .input symbolic_expr_from_relocation
-    // .input take_address
-    // .input tls_descriptor
-    // .input tls_index
-    // .input tls_segment
-    // .input track_register
     
     program.reg_def_use_return_block_end = read_csv::<(Address, Address, Address, Address)>(&get_path("reg_def_use.return_block_end.facts"))
     .map(|(a, b, c, d)| (a, b, c, d))
@@ -1365,13 +1229,90 @@ fn main() {
         .map(|(a,)| (a,))
         .collect_vec();
 
-    // .printsize reg_jump
-    // .printsize base_relative_operation
+    program.run();
+
+    println!("{:?}", program.scc_times_summary());
+    println!("{:?}", program.relation_sizes_summary());
 
     let reg_jump_size = program.reg_jump.len();
     println!("reg_jump size: {:?}", reg_jump_size);
 
     let base_relative_operation_size = program.base_relative_operation.len();
     println!("base_relative_operation size: {:?}", base_relative_operation_size);
+
+    let value_reg_size = program.value_reg.len();
+    println!("value_reg size: {:?}", value_reg_size);
+    let base_relative_jump_size = program.base_relative_jump.len();
+    println!("base_relative_jump size: {:?}", base_relative_jump_size);
+    let base_relative_operand_size = program.base_relative_operand.len();
+    println!("base_relative_operand size: {:?}", base_relative_operand_size);
+    let block_next_size = program.block_next.len();
+    println!("block_next size: {:?}", block_next_size);
+    let cmp_defines_size = program.cmp_defines.len();
+    println!("cmp_defines size: {:?}", cmp_defines_size);
+    let compare_and_jump_immediate_size = program.compare_and_jump_immediate.len();
+    println!("compare_and_jump_immediate size: {:?}", compare_and_jump_immediate_size);
+    let compare_and_jump_indirect_size = program.compare_and_jump_indirect.len();
+    println!("compare_and_jump_indirect size: {:?}", compare_and_jump_indirect_size);
+    let compare_and_jump_register_size = program.compare_and_jump_register.len();
+    println!("compare_and_jump_register size: {:?}", compare_and_jump_register_size);
+    let const_value_reg_used_size = program.const_value_reg_used.len();
+    println!("const_value_reg_used size: {:?}", const_value_reg_used_size);
+    let def_used_for_address_size = program.def_used_for_address.len();
+    println!("def_used_for_address size: {:?}", def_used_for_address_size);
+    let flags_and_jump_pair_size = program.flags_and_jump_pair.len();
+    println!("flags_and_jump_pair size: {:?}", flags_and_jump_pair_size);
+    let got_relative_operand_size = program.got_relative_operand.len();
+    println!("got_relative_operand size: {:?}", got_relative_operand_size);
+    let jump_table_element_access_size = program.jump_table_element_access.len();
+    println!("jump_table_element_access size: {:?}", jump_table_element_access_size);
+    let jump_table_max_size = program.jump_table_max.len();
+    println!("jump_table_max size: {:?}", jump_table_max_size);
+    let jump_table_signed_size = program.jump_table_signed.len();
+    println!("jump_table_signed size: {:?}", jump_table_signed_size);
+    let jump_table_start_size = program.jump_table_start.len();
+    println!("jump_table_start size: {:?}", jump_table_start_size);
+    let jump_table_target_size = program.jump_table_target.len();
+    println!("jump_table_target size: {:?}", jump_table_target_size);
+    let last_value_reg_limit_size = program.last_value_reg_limit.len();
+    println!("last_value_reg_limit size: {:?}", last_value_reg_limit_size);
+    let reg_def_use_def_used_size = program.reg_def_use_def_used.len();
+    println!("reg_def_use_def_used size: {:?}", reg_def_use_def_used_size);
+    let reg_def_use_live_var_at_block_end_size = program.reg_def_use_live_var_at_block_end.len();
+    println!("reg_def_use_live_var_at_block_end size: {:?}", reg_def_use_live_var_at_block_end_size);
+    let reg_def_use_live_var_at_prior_used_size = program.reg_def_use_live_var_at_prior_used.len();
+    println!("reg_def_use_live_var_at_prior_used size: {:?}", reg_def_use_live_var_at_prior_used_size);
+    let reg_def_use_live_var_used_size = program.reg_def_use_live_var_used.len();
+    println!("reg_def_use_live_var_used size: {:?}", reg_def_use_live_var_used_size);
+    let reg_def_use_return_val_used_size = program.reg_def_use_return_val_used.len();
+    println!("reg_def_use_return_val_used size: {:?}", reg_def_use_return_val_used_size);
+    let reg_has_base_image_size = program.reg_has_base_image.len();
+    println!("reg_has_base_image size: {:?}", reg_has_base_image_size);
+    let reg_has_got_size = program.reg_has_got.len();
+    println!("reg_has_got size: {:?}", reg_has_got_size);
+    let reg_reg_arithmetic_operation_defs_size = program.reg_reg_arithmetic_operation_defs.len();
+    println!("reg_reg_arithmetic_operation_defs size: {:?}", reg_reg_arithmetic_operation_defs_size);
+    let relative_jump_table_entry_candidate_size = program.relative_jump_table_entry_candidate.len();
+    println!("relative_jump_table_entry_candidate size: {:?}", relative_jump_table_entry_candidate_size);
+    let stack_def_use_def_used_size = program.stack_def_use_def_used.len();
+    println!("stack_def_use_def_used size: {:?}", stack_def_use_def_used_size);
+    let stack_def_use_live_var_at_block_end_size = program.stack_def_use_live_var_at_block_end.len();
+    println!("stack_def_use_live_var_at_block_end size: {:?}", stack_def_use_live_var_at_block_end_size);
+    let stack_def_use_live_var_at_prior_used_size = program.stack_def_use_live_var_at_prior_used.len();
+    println!("stack_def_use_live_var_at_prior_used size: {:?}", stack_def_use_live_var_at_prior_used_size);
+    let stack_def_use_live_var_used_size = program.stack_def_use_live_var_used.len();
+    println!("stack_def_use_live_var_used size: {:?}", stack_def_use_live_var_used_size);
+    let stack_def_use_live_var_used_in_block_size = program.stack_def_use_live_var_used_in_block.len();
+    println!("stack_def_use_live_var_used_in_block size: {:?}", stack_def_use_live_var_used_in_block_size);
+    let tls_desc_call_size = program.tls_desc_call.len();
+    println!("tls_desc_call size: {:?}", tls_desc_call_size);
+    let tls_get_addr_size = program.tls_get_addr.len();
+    println!("tls_get_addr size: {:?}", tls_get_addr_size);
+    let value_reg_edge_size = program.value_reg_edge.len();
+    println!("value_reg_edge size: {:?}", value_reg_edge_size);
+    let value_reg_limit_size = program.value_reg_limit.len();
+    println!("value_reg_limit size: {:?}", value_reg_limit_size);
+    let value_reg_unsupported_size = program.value_reg_unsupported.len();
+    println!("value_reg_unsupported size: {:?}", value_reg_unsupported_size);    
 
 }
