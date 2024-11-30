@@ -33,7 +33,9 @@ type LimitType=String;
 type AccessMode=String;
 type SymbolPosition=String;
 
+// Todo: var not bounded
 type StackVar=(Register, u64);
+
 type ConditionCode=String;
 type Number=i64;
 
@@ -315,7 +317,7 @@ ascent! {
     relation tls_segment(Address, Address, u64);
     relation track_register(Register);
 
-    // block_next(Block,EA,Block2) :- 
+    // block_next(Block,EA,Block2) <-- 
     // block_last_instruction(Block,EA),
     // may_fallthrough(EA,Block2),
     // !no_return_call_propagated(EA),
@@ -329,7 +331,7 @@ ascent! {
         !inter_procedural_edge(ea, block2),
         block(block2);
 
-    // block_next(Block,EA,Block2) :- 
+    // block_next(Block,EA,Block2) <-- 
     //     lsda_callsite_addresses(Beg,End,Block2),
     //     block_last_instruction(Block,EA),
     //     EA >= Beg,
@@ -342,7 +344,7 @@ ascent! {
         if ea < end,
         block(block2);
 
-    // block_next(Block,EA,EA_next) :- 
+    // block_next(Block,EA,EA_next) <-- 
     //     block_last_instruction(Block,EA),
     //     direct_jump(EA,EA_next),
     //     !inter_procedural_edge(EA,EA_next).
@@ -351,7 +353,7 @@ ascent! {
         direct_jump(ea, ea_next),
         !inter_procedural_edge(ea, ea_next);
 
-    // compare_and_jump_immediate(EA,EA,CC,Reg,0) :- 
+    // compare_and_jump_immediate(EA,EA,CC,Reg,0) <-- 
     //     instruction(EA,_,_,Operation,_,_,_,_,_,_),
     //     arch_cmp_zero_operation(Operation),
     //     arch_jump(EA),
@@ -781,6 +783,719 @@ ascent! {
         jump_table_start(ea, size, table_start, _, _),
         relative_jump_table_entry_candidate(_, table_start, size, _, dest, _, _);
 
+    last_value_reg_limit(from, to, reg, value, limit_type, 0) <-- 
+        value_reg_limit(from, to, reg, value, limit_type);
+
+    last_value_reg_limit(block_end, block_next, propagated_reg, propagated_val, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, propagated_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_next(block, block_end, block_next),
+        !reg_def_use_defined_in_block(block, propagated_reg),
+        !conditional_jump(block_end);
+
+    last_value_reg_limit(block_end, block_next, propagated_reg, propagated_val, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, propagated_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_next(block, block_end, block_next),
+        !reg_def_use_defined_in_block(block, propagated_reg),
+        no_value_reg_limit(block_end);
+
+    last_value_reg_limit(block_end, block_next, propagated_reg, propagated_val, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, propagated_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_next(block, block_end, block_next),
+        !reg_def_use_defined_in_block(block, propagated_reg),
+        cmp_defines(block_end, block_next, reg),
+        if reg != propagated_reg;
+
+    last_value_reg_limit(block_end, block_next, propagated_reg, propagated_val, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, propagated_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_next(block, block_end, block_next),
+        !reg_def_use_defined_in_block(block, propagated_reg),
+        cmp_defines(block_end, defined_next, propagated_reg),
+        if block_next != defined_next;
+
+    last_value_reg_limit(block_end, block_next, propagated_reg, propagated_val, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, propagated_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_next(block, block_end, block_next),
+        !reg_def_use_defined_in_block(block, propagated_reg),
+        value_reg_limit(block_end, block_next, reg, _, _),
+        if reg != propagated_reg;
+
+    last_value_reg_limit(block_end, block_next, propagated_reg, propagated_val, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, propagated_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_next(block, block_end, block_next),
+        !reg_def_use_defined_in_block(block, propagated_reg),
+        value_reg_limit(block_end, block_next, propagated_reg, val, type_here),
+        if *propagated_type == "MAX".to_string(),
+        if *type_here == "MAX".to_string(),
+        if propagated_val < val;
+
+    last_value_reg_limit(block_end, block_next, propagated_reg, propagated_val, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, propagated_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_next(block, block_end, block_next),
+        !reg_def_use_defined_in_block(block, propagated_reg),
+        value_reg_limit(block_end, block_next, propagated_reg, val, type_here),
+        if *propagated_type == "MIN".to_string(),
+        if *type_here == "MIN".to_string(),
+        if propagated_val > val;
+
+    last_value_reg_limit(block_end, ea_next, dst_reg, propagated_val + offset, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, src_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_last_instruction(block, block_end),
+        limit_reg_op(block_end, dst_reg, src_reg, offset),
+        if ea <= block_end,
+        if block_end <= block_end,
+        code_in_block(block_end, block),
+        block_next(block, block_end, ea_next),
+        !reg_def_use_block_last_def(block_end, _, src_reg);
+
+    last_value_reg_limit(block_end, ea_next, dst_reg, propagated_val + offset, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(from, ea, src_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_last_instruction(block, block_end),
+        limit_reg_op(block_end, dst_reg, src_reg, offset),
+        if ea <= block_end,
+        if block_end <= block_end,
+        code_in_block(block_end, block),
+        block_next(block, block_end, ea_next),
+        reg_def_use_block_last_def(block_end, from, src_reg);
+
+    last_value_reg_limit(ea_mov, ea_next, dst_reg, propagated_val + offset, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(from, ea, src_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_last_instruction(block, block_end),
+        limit_reg_op(ea_mov, dst_reg, src_reg, offset),
+        if ea <= ea_mov,
+        if ea_mov <= block_end,
+        code_in_block(ea_mov, block),
+        if ea_mov != block_end,
+        code_in_block(ea_mov, inlined_block_193),
+        may_fallthrough(ea_mov, ea_next),
+        code_in_block(ea_next, inlined_block_193),
+        reg_def_use_block_last_def(ea_mov, from, src_reg);
+
+    last_value_reg_limit(ea_mov, ea_next, dst_reg, propagated_val + offset, propagated_type, steps + 1) <-- 
+        step_limit_small(step_limit),
+        last_value_reg_limit(_, ea, src_reg, propagated_val, propagated_type, steps),
+        if steps <= step_limit,
+        code_in_block(ea, block),
+        block_last_instruction(block, block_end),
+        limit_reg_op(ea_mov, dst_reg, src_reg, offset),
+        if ea <= ea_mov,
+        if ea_mov <= block_end,
+        code_in_block(ea_mov, block),
+        if ea_mov != block_end,
+        code_in_block(ea_mov, inlined_block_194),
+        may_fallthrough(ea_mov, ea_next),
+        code_in_block(ea_next, inlined_block_194),
+        !reg_def_use_block_last_def(ea_mov, _, src_reg);
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_immediate(_, ea_jmp, cc, _, _),
+        if *cc == "O".to_string();
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_immediate(_, ea_jmp, cc, _, _),
+        if *cc == "NO".to_string();
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_immediate(_, ea_jmp, cc, _, _),
+        if *cc == "P".to_string();
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_immediate(_, ea_jmp, cc, _, _),
+        if *cc == "PE".to_string();
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_immediate(_, ea_jmp, cc, _, _),
+        if *cc == "S".to_string();
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_immediate(_, ea_jmp, cc, _, _),
+        if *cc == "NS".to_string();
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_register(ea_cmp, ea_jmp, _, reg1, reg2),
+        !reg_def_use_block_last_def(ea_cmp, _, reg1),
+        !reg_def_use_block_last_def(ea_cmp, _, reg2);
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_register(ea_cmp, ea_jmp, _, reg1, reg2),
+        reg_def_use_block_last_def(ea_cmp, ea, reg1),
+        !arch_move_reg_imm(ea, reg1, _, _),
+        !reg_def_use_block_last_def(ea_cmp, _, reg2);
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_register(ea_cmp, ea_jmp, _, reg1, reg2),
+        reg_def_use_block_last_def(ea_cmp, ea, reg2),
+        !arch_move_reg_imm(ea, reg2, _, _),
+        !reg_def_use_block_last_def(ea_cmp, _, reg1);
+
+    no_value_reg_limit(ea_jmp) <-- 
+        compare_and_jump_register(ea_cmp, ea_jmp, _, reg1, reg2),
+        reg_def_use_block_last_def(ea_cmp, ea, reg1),
+        !arch_move_reg_imm(ea, reg1, _, _),
+        reg_def_use_block_last_def(ea_cmp, _, reg2),
+        !arch_move_reg_imm(ea, reg2, _, _);
+
+    no_value_reg_limit(ea_jmp) <-- 
+        flags_and_jump_pair(ea_cmp, ea_jmp, _),
+        instruction(ea_cmp, _, _, operation, _, _, _, _, _, _),
+        !arch_cmp_operation(operation);    
+
+    // Todo
+    // .plan 1:(3,1,2)
+
+    reg_def_use_def_used(ea_def, var, next_ea_used, next_index) <--
+        reg_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
+        reg_def_use_def_used(ea_def, var, ea_used, _),
+        reg_def_use_live_var_used(next_used_block, var, var, next_ea_used, next_index, _);
+
+    reg_def_use_def_used(ea_def, reg, ea_used, index) <--
+        reg_def_use_return_val_used(_, callee, reg, ea_used, index),
+        reg_def_use_return_block_end(callee, _, _, block_end),
+        reg_def_use_block_last_def(block_end, ea_def, reg);
+
+    reg_def_use_live_var_at_block_end(prev_block, block, var) <--
+        block_next(prev_block, prev_block_end, block),
+        reg_def_use_live_var_used(block, var, _, _, _, _),
+        !reg_def_use_flow_def(prev_block_end, var, block, _);
+
+    reg_def_use_live_var_at_block_end(prev_block, block_used, var) <--
+        reg_def_use_live_var_at_block_end(block, block_used, var),
+        !reg_def_use_ref_in_block(block, var),
+        block_next(prev_block, _, block);
+
+    reg_def_use_live_var_at_prior_used(ea_used, block_used, var) <--
+        reg_def_use_live_var_at_block_end(block, block_used, var),
+        reg_def_use_used_in_block(block, ea_used, var, _),
+        !reg_def_use_defined_in_block(block, var);
+
+    // Todo fix unbounded reg
+    reg_def_use_live_var_used(ret_block, reg, reg, ea_used, index, 1) <--
+        reg_def_use_return_block_end(callee, _, ret_block, ret_block_end),
+        // !reg_def_use_block_last_def(ret_block_end, _, reg),
+        reg_def_use_return_val_used(_, callee, reg, ea_used, index);
+
+    reg_def_use_return_val_used(ea_call, callee, reg, ea_used, index_used) <--
+        arch_return_reg(reg),
+        reg_def_use_def_used(ea_call, reg, ea_used, index_used),
+        direct_call(ea_call, callee);
+
+    reg_has_base_image(ea, reg) <--
+        reg_has_base_image(ea2, reg2),
+        reg_def_use_def_used(ea2, reg2, ea, _),
+        arch_move_reg_reg(ea, reg, reg2);
+
+    reg_has_base_image(ea, reg) <--
+        reg_has_base_image(ea2, reg2),
+        reg_def_use_def_used(ea2, reg2, ea, _),
+        arch_reg_reg_arithmetic_operation(ea, reg, reg2, _, mult, 0),
+        if *mult > 1;
+
+    reg_has_got(ea, reg) <--
+        value_reg(ea, reg, _, "NONE".to_string(), _, offset, _),
+        got_section(name),
+        loaded_section(tmp_88, _, name),
+        if *tmp_88 == (*offset as Address);
+
+    reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset) <--
+        def_used_for_address(ea, reg_def, _),
+        arch_reg_reg_arithmetic_operation(ea, reg_def, reg1, reg2, mult, offset),
+        if reg1 != reg2,
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        if ea != ea_def1,
+        reg_def_use_def_used(ea_def2, reg2, ea, _),
+        if ea != ea_def2;
+
+    relative_jump_table_entry_candidate(table_start, table_start, size, reference, (*reference + (unsafe {functor_data_unsigned(*table_start as Address, *size as size_t)} as Address) ), scale, 0) <--
+        jump_table_start(_, size, table_start, reference, scale),
+        jump_table_signed(table_start, inlined_signed_1118),
+        if *inlined_signed_1118 == 0,
+        if unsafe {functor_data_valid(*table_start as Address, *size as size_t) } == 1,
+        code_in_block(tmp_318, _),
+        loaded_section(section_start, section_end, _),
+        if table_start >= section_start,
+        if table_start < section_end,
+        if *tmp_318 == (*reference + unsafe{functor_data_unsigned(*table_start, *size as size_t)} as Address );
+
+    relative_jump_table_entry_candidate(table_start, table_start, size, reference, dest, scale, 0) <--
+        jump_table_start(_, size, table_start, reference, scale),
+        jump_table_signed(table_start, inlined_signed_1119),
+        if *inlined_signed_1119 == 0,
+        if unsafe { functor_data_valid(*table_start, *size as size_t) } == 1,
+        is_padding(inlined_dest_1119),
+        after_end(inlined_dest_1119, inlined_end_1119),
+        after_end(dest, inlined_end_1119),
+        !is_padding(dest),
+        if *inlined_dest_1119 == (reference + unsafe {functor_data_unsigned(*table_start, *size as size_t)} as Address),
+        code_in_block(dest, _),
+        loaded_section(section_start, section_end, _),
+        if table_start >= section_start,
+        if table_start < section_end;
+
+    relative_jump_table_entry_candidate(table_start, table_start, size, reference, (((*reference as Number) + ((*scale as Number) * unsafe {functor_data_signed(*table_start, *size as size_t) })) as Address), scale, 0) <--
+        jump_table_start(_, size, table_start, reference, scale),
+        jump_table_signed(table_start, inlined_signed_1120),
+        if *inlined_signed_1120 == 1,
+        if unsafe {functor_data_valid(*table_start, *size as size_t) } == 1,
+        code_in_block(tmp_319, _),
+        loaded_section(section_start, section_end, _),
+        if table_start >= section_start,
+        if table_start < section_end,
+        if *tmp_319 == (((*reference as Number) + ((*scale as Number) * unsafe {functor_data_signed(*table_start, *size as size_t)} )) as Address);
+
+    relative_jump_table_entry_candidate(table_start, table_start, size, reference, dest, scale, 0) <--
+        jump_table_start(_, size, table_start, reference, scale),
+        jump_table_signed(table_start, inlined_signed_1121),
+        if *inlined_signed_1121 == 1,
+        if unsafe {functor_data_valid(*table_start, *size as size_t)} == 1,
+        is_padding(inlined_dest_1121),
+        after_end(inlined_dest_1121, inlined_end_1121),
+        after_end(dest, inlined_end_1121),
+        if *inlined_dest_1121 == (((*reference as Number) + ((*scale as Number) * unsafe {functor_data_signed(*table_start, *size as size_t)} )) as Address),
+        !is_padding(dest),
+        code_in_block(dest, _),
+        loaded_section(section_start, section_end, _),
+        if table_start >= section_start,
+        if table_start < section_end;
+
+        relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, (*reference + unsafe { functor_data_unsigned((last_ea + size), *size as size_t) } as Address), scale, offset) <--
+        relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
+        jump_table_max(table_start, table_end),
+        if *table_end >= (last_ea + size),
+        !symbol((last_ea + size), _, _, _, _, _, _, _, _),
+        data_segment(beg_data, end_data),
+        if beg_data <= table_start,
+        if ((last_ea + size) + size) <= *end_data,
+        jump_table_signed(table_start, inlined_signed_1122),
+        if *inlined_signed_1122 == 0,
+        if unsafe { functor_data_valid((last_ea + size), *size as size_t) } == 1,
+        code_in_block(_tmp_320, _),
+        if *_tmp_320 == (*reference + unsafe { functor_data_unsigned((last_ea + size), *size as size_t) } as Address);
+
+    relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, dest, scale, offset) <--
+        relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
+        jump_table_max(table_start, table_end),
+        if *table_end >= (last_ea + size),
+        !symbol((last_ea + size), _, _, _, _, _, _, _, _),
+        data_segment(beg_data, end_data),
+        if beg_data <= table_start,
+        if ((last_ea + size) + size) <= *end_data,
+        jump_table_signed(table_start, inlined_signed_1123),
+        if *inlined_signed_1123 == 0,
+        if unsafe { functor_data_valid((last_ea + size), *size as size_t) } == 1,
+        is_padding(inlined_dest_1123),
+        after_end(inlined_dest_1123, inlined_end_1123),
+        after_end(dest, inlined_end_1123),
+        if *inlined_dest_1123 == (reference + unsafe { functor_data_unsigned((last_ea + size), *size as size_t) } as Address),
+
+        !is_padding(dest),
+        code_in_block(dest, _);
+
+    relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed((last_ea + size), *size as size_t) })) as Address), scale, offset) <--
+        relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
+        jump_table_max(table_start, table_end),
+        if *table_end >= (last_ea + size),
+        !symbol((last_ea + size), _, _, _, _, _, _, _, _),
+        data_segment(beg_data, end_data),
+        if beg_data <= table_start,
+        if ((last_ea + size) + size) <= *end_data,
+        jump_table_signed(table_start, inlined_signed_1124),
+        if *inlined_signed_1124 == 1,
+        if unsafe { functor_data_valid((last_ea + size), *size as size_t) } == 1,
+        code_in_block(_tmp_321, _),
+        if *_tmp_321 == (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed((last_ea + size), *size as size_t) })) as Address);
+
+    relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, dest, scale, offset) <--
+        relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
+        jump_table_max(table_start, table_end),
+        if *table_end >= (last_ea + size),
+        !symbol((last_ea + size), _, _, _, _, _, _, _, _),
+        data_segment(beg_data, end_data),
+        if beg_data <= table_start,
+        if ((last_ea + size) + size) <= *end_data,
+        jump_table_signed(table_start, inlined_signed_1125),
+        if *inlined_signed_1125 == 1,
+        if unsafe { functor_data_valid((last_ea + size), *size as size_t) } == 1,
+        is_padding(inlined_dest_1125),
+        after_end(inlined_dest_1125, inlined_end_1125),
+        after_end(dest, inlined_end_1125),
+        if *inlined_dest_1125 == (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed((last_ea + size), *size as size_t) })) as Address),
+        !is_padding(dest),
+        code_in_block(dest, _);
+
+    stack_def_use_def_used(ea_def, var_def, ea_used, var_used, index) <--
+        stack_def_use_live_var_at_block_end(block, block_used, var),
+        stack_def_use_live_var_def(block, var_def, var, ea_def),
+        stack_def_use_live_var_used(block_used, var, var_used, ea_used, index, _);
+
+    stack_def_use_def_used(ea_def, def_var, ea_used, used_var, index) <--
+        stack_def_use_live_var_used_in_block(_, ea, def_var, used_var, ea_used, index, _),
+        may_fallthrough(ea_def, ea),
+        code_in_block(ea_def, block),
+        code_in_block(ea, block),
+        stack_def_use_def(ea_def, def_var);
+
+    stack_def_use_def_used(ea_def, var_def, next_ea_used, var_used, next_index) <--
+        stack_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
+        stack_def_use_def_used(ea_def, var_def, ea_used, var, _),
+        stack_def_use_live_var_used(next_used_block, var, var_used, next_ea_used, next_index, _);
+
+    stack_def_use_live_var_at_block_end(prev_block, block_used, (inlined_base_reg_374, inlined_stack_pos_374)) <--
+        stack_def_use_live_var_at_block_end(block, block_used, (inlined_base_reg_374, inlined_stack_pos_374)),
+        !stack_def_use_ref_in_block(block, (inlined_base_reg_374, inlined_stack_pos_374)),
+        !reg_def_use_defined_in_block(block, inlined_base_reg_374),
+        block_next(prev_block, _, block);
+
+    stack_def_use_live_var_at_block_end(prev_block, block, var) <--
+        block_next(prev_block, _, block),
+        stack_def_use_live_var_used(block, var, _, _, _, _);
+
+    stack_def_use_live_var_at_prior_used(ea_used, block_used, (inlined_base_reg_375, inlined_stack_pos_375)) <--
+        stack_def_use_live_var_at_block_end(block, block_used, (inlined_base_reg_375, inlined_stack_pos_375)),
+        stack_def_use_used_in_block(block, ea_used, (*inlined_base_reg_375, inlined_stack_pos_375), _),
+        !reg_def_use_defined_in_block(block, inlined_base_reg_375),
+        !stack_def_use_defined_in_block(block, (inlined_base_reg_375, inlined_stack_pos_375));
+
+    stack_def_use_live_var_used(block, live_var, used_var, ea_used, index, moves) <--
+        stack_def_use_live_var_used_in_block(block, block, live_var, used_var, ea_used, index, moves);
+
+    stack_def_use_live_var_used_in_block(block, next_ea, (*base_reg, stack_pos), var_used, ea_used, index, (moves + 1)) <--
+        adjusts_stack_in_block(block, _, base_reg, _),
+        stack_def_use_live_var_at_block_end(block, block_used, (base_reg, stack_pos)),
+        stack_def_use_live_var_used(block_used, (base_reg, stack_pos), var_used, ea_used, index, moves),
+        stack_def_use_moves_limit(moves_limit),
+        if moves <= moves_limit,
+        block_last_instruction(block, last_ea),
+        next(last_ea, next_ea);
+
+    stack_def_use_live_var_used_in_block(block, next_ea, (*base_reg, stack_pos), var_used, ea_used, index, (moves + 1)) <--
+        stack_base_reg_move(block, _, _, base_reg),
+        stack_def_use_live_var_at_block_end(block, block_used, (base_reg, stack_pos)),
+        stack_def_use_live_var_used(block_used, (base_reg, stack_pos), var_used, ea_used, index, moves),
+        stack_def_use_moves_limit(moves_limit),
+        if moves <= moves_limit,
+        block_last_instruction(block, last_ea),
+        next(last_ea, next_ea);
+
+    stack_def_use_live_var_used_in_block(block, ea, (base_reg, stack_pos), (final_base_reg, final_stack_pos), ea_used, index, moves) <--
+        stack_def_use_live_var_used_in_block(block, next, (base_reg, stack_pos), (final_base_reg, final_stack_pos), ea_used, index, moves),
+        block_instruction_next(block, ea, next),
+        !reg_def_use_def(ea, base_reg),
+        !stack_def_use_def(ea, (base_reg, stack_pos));
+
+    stack_def_use_live_var_used_in_block(block, ea, (*base_reg, (stack_pos + offset)), used_var, ea_used, index, moves) <--
+        stack_def_use_live_var_used_in_block(block, next, (*base_reg, stack_pos), used_var, ea_used, index, moves),
+        block_instruction_next(block, ea, next),
+        adjusts_stack_in_block(_, ea, base_reg, offset),
+        !stack_def_use_def(ea, (base_reg, stack_pos)),
+        arch_stack_pointer(base_reg),
+        if (stack_pos + offset) >= 0;
+
+    stack_def_use_live_var_used_in_block(block, ea, (*base_reg, (stack_pos + offset)), used_var, ea_used, index, moves) <--
+        stack_def_use_live_var_used_in_block(block, next, (base_reg, stack_pos), used_var, ea_used, index, moves),
+        block_instruction_next(block, ea, next),
+        adjusts_stack_in_block(_, ea, base_reg, offset),
+        !stack_def_use_def(ea, (base_reg, stack_pos)),
+        !arch_stack_pointer(base_reg);
+
+    stack_def_use_live_var_used_in_block(block, ea, (*src_base_reg, stack_pos), used_var, ea_used, index, moves) <--
+
+        stack_def_use_live_var_used_in_block(block, next, (dst_base_reg, stack_pos), used_var, ea_used, index, moves),
+        block_instruction_next(block, ea, next),
+        stack_base_reg_move(_, ea, src_base_reg, dst_base_reg);
+
+    tls_desc_call(load, call, (start + offset)) <--
+        tls_segment(start, _, _),
+        tls_descriptor(ea, offset),
+        pc_relative_operand(load, _, ea),
+        arch_call(call, _),
+        const_value_reg_used(call, load, _, _, _tmp_137),
+        if *_tmp_137 == (*ea as Number);
+
+    tls_desc_call(load, call, (start + offset)) <--
+        tls_segment(start, _, _),
+        tls_descriptor(ea, offset),
+        got_relative_operand(load, _, ea),
+        arch_call(call, _),
+        const_value_reg_used(call, load, _, _, _tmp_138),
+        if *_tmp_138 == (*ea as Number);
+
+    tls_get_addr(load, call, (start + offset)) <--
+        binary_format("ELF".to_string()),
+        pc_relative_operand(load, _, ea),
+        tls_index(ea, offset),
+        reg_def_use_def_used(load, reg, call, _),
+        call_tls_get_addr(call, reg),
+        tls_segment(start, _, _);
+
+    value_reg(ea, reg, ea, "None".to_string(), 0, immediate, 1) <--
+        def_used_for_address(ea, reg, _),
+        arch_move_reg_imm(ea, reg, immediate, _),
+        !instruction_has_relocation(ea, _);
+
+    value_reg(ea, reg, ea, "None".to_string(), 0, 0, 1) <--
+        def_used_for_address(ea, reg, _),
+        is_xor_reset(ea);
+
+    value_reg(ea, reg, ea, "None".to_string(), 0, immediate, 1) <--
+        def_used_for_address(ea, reg, _),
+        reg_def_use_flow_def(ea, reg, _, immediate);
+
+    value_reg(ea, reg, ea, reg, 1, 0, 1) <--
+        def_used_for_address(ea, reg, _),
+        value_reg_unsupported(ea, reg);
+
+    value_reg(ea, reg, ea, reg, 1, 0, 1) <--
+        def_used_for_address(ea, reg, _),
+        value_reg_unsupported(ea, reg);
+
+    value_reg(ea, reg, ea_from, "Unknown".to_string(), immediate, base, (steps + 1)) <--
+        step_limit(step_limit),
+        value_reg(ea, reg, ea_from, "None".to_string(), 0, base, steps),
+        if *steps <= (step_limit - 2),
+        value_reg_edge(ea, reg, ea, reg, 1, immediate),
+        if *immediate != 0;
+
+    value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 1)) <--
+        step_limit(step_limit),
+        value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+        if *steps <= (step_limit - 2),
+        value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
+        if ea1 > ea2;
+
+    value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 5)) <--
+        step_limit(step_limit),
+        value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+        if *steps <= (step_limit - 6),
+        value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
+        if ea1 < ea2;
+
+    value_reg(ea, reg, ea, "None".to_string(), 0, (*address as Number), 1) <--
+        arch_return_reg(reg),
+        tls_get_addr(_, ea, address);
+
+    value_reg(ea, reg, ea, "None".to_string(), 0, (*address as Number), 1) <--
+        arch_return_reg(reg),
+        tls_desc_call(_, ea, address);
+
+        value_reg(ea, reg, ea, "NONE".to_string(), 0, (*address as Number), 1) <--
+        def_used_for_address(ea, reg, _),
+        instruction_has_relocation(ea, ea_rel),
+        symbolic_expr_from_relocation(ea_rel, _, _, _, address);
+
+    value_reg(ea, reg, ea, "NONE".to_string(), 0, (*offset as Number), 1) <--
+        binary_format("ELF".to_string()),
+        got_relative_operand(ea, 1, offset),
+        instruction(ea, _, _, "LEA".to_string(), _, op2, 0, 0, _, _),
+        op_regdirect_contains_reg(op2, reg),
+        track_register(reg);
+
+    value_reg(ea, reg_def, ea_third, reg3, (mult1 + (mult * mult2)), ((offset + offset1) + (offset2 * mult)), (max(*steps1, *steps2) + 2)) <--
+        step_limit(step_limit),
+        reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset),
+        value_reg(ea_def1, reg1, ea_third, reg3, mult1, offset1, steps1),
+        if *steps1 <= (*step_limit - 3),
+        if ea != ea_third,
+        value_reg(ea_def2, reg2, ea_third, reg3, mult2, offset2, steps2),
+        if *steps2 <= (*step_limit - 3);
+
+    value_reg(ea, reg_def, ea_third, reg3, (mult * mult2), ((offset + offset1) + (offset2 * mult)), (max(*steps1, *steps2) + 2)) <--
+        step_limit(step_limit),
+        reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset),
+        value_reg(ea_def1, reg1, _, "NONE".to_string(), _, offset1, steps1),
+        if *steps1 <= (*step_limit - 3),
+        value_reg(ea_def2, reg2, ea_third, reg3, mult2, offset2, steps2),
+        if *steps2 <= (*step_limit - 3),
+        if ea != ea_third,
+        if *reg3 != "NONE".to_string();
+
+    // Todo: add max
+    value_reg(ea, reg_def, ea_third, reg3, mult1, ((offset + offset1) + (offset2 * mult)), (max(steps1, steps2) + 2)) <--
+        step_limit(step_limit),
+        reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset),
+        value_reg(ea_def2, reg2, _, "NONE".to_string(), _, offset2, steps2),
+        if *steps2 <= (*step_limit - 3),
+        value_reg(ea_def1, reg1, ea_third, reg3, mult1, offset1, steps1),
+        if *steps1 <= (*step_limit - 3),
+        if *reg3 != "NONE".to_string(),
+        if ea != ea_third;
+
+    value_reg(ea_load, reg2, ea_load, "NONE".to_string(), 0, immediate, 1) <--
+        arch_store_immediate(ea_store, _, _, immediate, reg_base_store, "NONE".to_string(), _, stack_pos_store),
+        stack_def_use_def_used(ea_store, (*reg_base_store, *stack_pos_store as Address), ea_load, (*reg_base_load, stack_pos_load), _),
+        arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, stack_pos_load),
+        def_used_for_address(ea_load, reg2, _);
+
+    value_reg(ea, reg, ea, "NONE".to_string(), 0, (*target_addr as Number), 1) <--
+        def_used_for_address(ea, reg, _),
+        arch_memory_access("LOAD".to_string(), ea, src_op, _, reg, _, _, _, _),
+        simple_data_access_pattern(mem_addr, src_op, size, ea),
+        if 4 <= *size,
+        if *size <= 8,
+        symbolic_expr_from_relocation(mem_addr, size, symbol, _, target_addr),
+        defined_symbol(_, _, _, _, _, _, _, _, symbol),
+        if (*target_addr as Number) >= 0;
+
+    value_reg(ea, reg, ea, "NONE".to_string(), 0, unsafe {functor_data_signed(*mem_addr, *size as size_t)}, 1) <--
+        def_used_for_address(ea, reg, _),
+        arch_memory_access("LOAD".to_string(), ea, src_op, _, reg, _, _, _, _),
+        simple_data_access_pattern(mem_addr, src_op, size, ea),
+        if 4 <= *size,
+        if *size <= 8,
+        if unsafe {functor_data_valid(*mem_addr, *size as size_t)} == 1,
+        !symbolic_expr_from_relocation(mem_addr, _, _, _, _),
+        if unsafe {functor_data_signed(*mem_addr, *size as size_t)} >= 0;
+
+    value_reg_edge(ea, reg, ea_prev, reg_origin, 1, 0) <--
+        def_used_for_address(ea_prev, reg_origin, _),
+        reg_def_use_def_used(ea_prev, reg_origin, ea, _),
+        arch_move_reg_reg(ea, reg, reg_origin),
+        track_register(reg),
+        if ea != ea_prev;
+
+    value_reg_edge(ea, dst, ea_prev, src, mult, immediate) <--
+        def_used_for_address(ea_prev, src, _),
+        reg_def_use_def_used(ea_prev, src, ea, _),
+        arch_reg_arithmetic_operation(ea, dst, src, mult, immediate),
+        track_register(dst);
+
+    value_reg_edge(ea_load, reg2, ea_prev, reg1, 1, 0) <--
+        stack_def_use_def_used(ea_store, (*reg_base_store as Register, *stack_pos_store as Address), ea_load, 
+        (*reg_base_load as Register, *stack_pos_load as Address), _),
+            arch_memory_access("STORE".to_string(), ea_store, _, _, reg1, reg_base_store, "NONE".to_string(), _, stack_pos_store),
+            arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, stack_pos_load),
+            reg_def_use_def_used(ea_prev, reg1, ea_store, _);
+
+    value_reg_limit(ea_jmp, ea_branch, reg, (immediate + branch_offset), branch_lt) <--
+        compare_and_jump_immediate(_, ea_jmp, cc, reg, immediate),
+        track_register(reg),
+        limit_type_map(cc, branch_lt, _, branch_offset, _),
+        direct_jump(ea_jmp, ea_branch),
+        may_fallthrough(ea_jmp, _);
+
+    value_reg_limit(ea_jmp, ea_fallthrough, reg, (immediate + fallthrough_offset), fallthrough_lt) <--
+        compare_and_jump_immediate(_, ea_jmp, cc, reg, immediate),
+        track_register(reg),
+        limit_type_map(cc, _, fallthrough_lt, _, fallthrough_offset),
+        direct_jump(ea_jmp, _),
+        may_fallthrough(ea_jmp, ea_fallthrough);
+
+    value_reg_limit(ea_jmp, ea_branch, reg2, (immediate + offset1), lt1) <--
+        compare_and_jump_register(ea_cmp, ea_jmp, cc, reg1, reg2),
+        limit_type_map(cc, lt1, _, offset1, _),
+        reg_def_use_block_last_def(ea_cmp, ea_regdef, reg1),
+        arch_move_reg_imm(ea_regdef, reg1, immediate, _),
+        track_register(reg2),
+        direct_jump(ea_jmp, ea_branch),
+        may_fallthrough(ea_jmp, _);
+
+    value_reg_limit(ea_jmp, ea_branch, reg1, (immediate + offset2), lt2) <--
+        compare_and_jump_register(ea_cmp, ea_jmp, cc, reg1, reg2),
+        limit_type_map(cc, _, lt2, _, offset2),
+        reg_def_use_block_last_def(ea_cmp, ea_regdef, reg2),
+        arch_move_reg_imm(ea_regdef, reg2, immediate, _),
+        track_register(reg1),
+        direct_jump(ea_jmp, ea_branch),
+        may_fallthrough(ea_jmp, _);
+
+    value_reg_limit(ea_jmp, ea_fallthrough, reg2, (immediate + offset2), lt2) <--
+        compare_and_jump_register(ea_cmp, ea_jmp, cc, reg1, reg2),
+        limit_type_map(cc, _, lt2, _, offset2),
+        reg_def_use_block_last_def(ea_cmp, ea_regdef, reg1),
+        arch_move_reg_imm(ea_regdef, reg1, immediate, _),
+        track_register(reg2),
+        direct_jump(ea_jmp, _),
+        may_fallthrough(ea_jmp, ea_fallthrough);
+
+    value_reg_limit(ea_jmp, ea_fallthrough, reg1, (immediate + offset1), lt1) <--
+        compare_and_jump_register(ea_cmp, ea_jmp, cc, reg1, reg2),
+        limit_type_map(cc, lt1, _, offset1, _),
+        reg_def_use_block_last_def(ea_cmp, ea_regdef, reg2),
+        arch_move_reg_imm(ea_regdef, reg2, immediate, _),
+        track_register(reg1),
+        direct_jump(ea_jmp, _),
+        may_fallthrough(ea_jmp, ea_fallthrough);
+
+    value_reg_limit(ea_target, ea_limited, reg, (immediate + branch_offset), branch_lt) <--
+        compare_and_jump_indirect(ea_cmp, ea_jmp, cc, indirect_op, immediate),
+        limit_type_map(cc, branch_lt, _, branch_offset, _),
+        next(ea_cmp, ea_jmp),
+        direct_jump(ea_jmp, ea_target),
+        arch_memory_access("LOAD".to_string(), ea_target, _, _, reg, _, _, _, _),
+        track_register(reg),
+        instruction_get_op(ea_target, _, indirect_op),
+        code_in_block(ea_target, inlined_block_887),
+        may_fallthrough(ea_target, ea_limited),
+        code_in_block(ea_limited, inlined_block_887);
+
+    value_reg_limit(ea_target, ea_limited, reg, (immediate + fallthrough_offset), fallthrough_lt) <--
+        compare_and_jump_indirect(ea_cmp, ea_jmp, cc, indirect_op, immediate),
+        limit_type_map(cc, _, fallthrough_lt, _, fallthrough_offset),
+        next(ea_cmp, ea_jmp),
+        may_fallthrough(ea_jmp, ea_target),
+        arch_memory_access("LOAD".to_string(), ea_target, _, _, reg, _, _, _, _),
+        track_register(reg),
+        instruction_get_op(ea_target, _, indirect_op),
+        code_in_block(ea_target, inlined_block_888),
+        may_fallthrough(ea_target, ea_limited),
+        code_in_block(ea_limited, inlined_block_888);
+
+    value_reg_unsupported(ea, reg) <--
+        def_used_for_address(ea, reg, _),
+        arch_move_reg_reg(ea, dst, src),
+        track_register(dst),
+        !track_register(src);
+
+    value_reg_unsupported(ea, reg) <--
+        def_used_for_address(ea, reg, _),
+        arch_call(ea, _);
+
+    value_reg_unsupported(ea, reg) <--
+        def_used_for_address(ea, reg, _),
+        arch_memory_access("LOAD".to_string(), ea, _, _, reg, reg_base, _, _, _),
+        if reg_base != "NONE".to_string();
+
+    value_reg_unsupported(ea, reg) <--
+        def_used_for_address(ea, reg, _),
+        arch_memory_access("LOAD".to_string(), ea, _, _, reg, _, reg_index, _, _),
+        if reg_index != "NONE".to_string();
+
+    // Todo solve this
+    // value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps1) <= value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps2) :- 
+    // Steps2 <= Steps1.
+    // value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps1) <= value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps2) :- 
+    //     Steps2 <= Steps1.
+    // value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps1) <= value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps2) :- 
+    //     Steps2 <= Steps1.    
+
 }
 
 fn main() {
@@ -827,7 +1542,7 @@ fn main() {
         .map(|(x,)| (x,))
         .collect_vec();
 
-    // arch_cmp_zero_operation(""):-
+    // arch_cmp_zero_operation("")<--
     //     false.
     // Todo
 
@@ -872,7 +1587,7 @@ fn main() {
         .collect_vec();
 
 
-    // arch_pc_relative_addr(0,"",0):- false.
+    // arch_pc_relative_addr(0,"",0)<-- false.
     // Todo
 
     // .input arch_reg_arithmetic_operation(filename="arch.reg_arithmetic_operation.facts")
@@ -906,7 +1621,7 @@ fn main() {
         .map(|(a, b, c, d, e, f, g, h)| (a, b, c, d, e, f, g, h))
         .collect_vec();
 
-    // arch_store_immediate(0,0,0,0,"NONE","NONE",0,0):- false.
+    // arch_store_immediate(0,0,0,0,"NONE","NONE",0,0)<-- false.
     // Todo
 
     // .input base_address
