@@ -1,5 +1,6 @@
 // use ascent::ascent;
 use std::process::Command;
+use std::cmp::max;
 
 use ascent::*;
 use itertools::Itertools;
@@ -1086,7 +1087,7 @@ ascent! {
         if table_start >= section_start,
         if table_start < section_end;
 
-        relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, (*reference + unsafe { functor_data_unsigned((last_ea + size), *size as size_t) } as Address), scale, offset) <--
+        relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, (*reference + unsafe { functor_data_unsigned(last_ea + size, *size as size_t) } as Address), scale, offset) <--
         relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
         jump_table_max(table_start, table_end),
         if *table_end >= (last_ea + size),
@@ -1096,11 +1097,11 @@ ascent! {
         if ((last_ea + size) + size) <= *end_data,
         jump_table_signed(table_start, inlined_signed_1122),
         if *inlined_signed_1122 == 0,
-        if unsafe { functor_data_valid((last_ea + size), *size as size_t) } == 1,
+        if unsafe { functor_data_valid(last_ea + size, *size as size_t) } == 1,
         code_in_block(_tmp_320, _),
-        if *_tmp_320 == (*reference + unsafe { functor_data_unsigned((last_ea + size), *size as size_t) } as Address);
+        if *_tmp_320 == (*reference + unsafe { functor_data_unsigned(last_ea + size, *size as size_t) } as Address);
 
-    relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, dest, scale, offset) <--
+    relative_jump_table_entry_candidate(last_ea + size, table_start, size, reference, dest, scale, offset) <--
         relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
         jump_table_max(table_start, table_end),
         if *table_end >= (last_ea + size),
@@ -1110,16 +1111,16 @@ ascent! {
         if ((last_ea + size) + size) <= *end_data,
         jump_table_signed(table_start, inlined_signed_1123),
         if *inlined_signed_1123 == 0,
-        if unsafe { functor_data_valid((last_ea + size), *size as size_t) } == 1,
+        if unsafe { functor_data_valid(last_ea + size, *size as size_t) } == 1,
         is_padding(inlined_dest_1123),
         after_end(inlined_dest_1123, inlined_end_1123),
         after_end(dest, inlined_end_1123),
-        if *inlined_dest_1123 == (reference + unsafe { functor_data_unsigned((last_ea + size), *size as size_t) } as Address),
+        if *inlined_dest_1123 == (reference + unsafe { functor_data_unsigned(last_ea + size, *size as size_t) } as Address),
 
         !is_padding(dest),
         code_in_block(dest, _);
 
-    relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed((last_ea + size), *size as size_t) })) as Address), scale, offset) <--
+    relative_jump_table_entry_candidate(last_ea + size, table_start, size, reference, (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed(last_ea + size, *size as size_t) })) as Address), scale, offset) <--
         relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
         jump_table_max(table_start, table_end),
         if *table_end >= (last_ea + size),
@@ -1129,11 +1130,11 @@ ascent! {
         if ((last_ea + size) + size) <= *end_data,
         jump_table_signed(table_start, inlined_signed_1124),
         if *inlined_signed_1124 == 1,
-        if unsafe { functor_data_valid((last_ea + size), *size as size_t) } == 1,
+        if unsafe { functor_data_valid(last_ea + size, *size as size_t) } == 1,
         code_in_block(_tmp_321, _),
-        if *_tmp_321 == (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed((last_ea + size), *size as size_t) })) as Address);
+        if *_tmp_321 == (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed(last_ea + size, *size as size_t) })) as Address);
 
-    relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, dest, scale, offset) <--
+    relative_jump_table_entry_candidate(last_ea + size, table_start, size, reference, dest, scale, offset) <--
         relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
         jump_table_max(table_start, table_end),
         if *table_end >= (last_ea + size),
@@ -1143,11 +1144,11 @@ ascent! {
         if ((last_ea + size) + size) <= *end_data,
         jump_table_signed(table_start, inlined_signed_1125),
         if *inlined_signed_1125 == 1,
-        if unsafe { functor_data_valid((last_ea + size), *size as size_t) } == 1,
+        if unsafe { functor_data_valid(last_ea + size, *size as size_t) } == 1,
         is_padding(inlined_dest_1125),
         after_end(inlined_dest_1125, inlined_end_1125),
         after_end(dest, inlined_end_1125),
-        if *inlined_dest_1125 == (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed((last_ea + size), *size as size_t) })) as Address),
+        if *inlined_dest_1125 == (((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed(last_ea + size, *size as size_t) })) as Address),
         !is_padding(dest),
         code_in_block(dest, _);
 
@@ -1168,9 +1169,10 @@ ascent! {
         stack_def_use_def_used(ea_def, var_def, ea_used, var, _),
         stack_def_use_live_var_used(next_used_block, var, var_used, next_ea_used, next_index, _);
 
-    stack_def_use_live_var_at_block_end(prev_block, block_used, (inlined_base_reg_374, inlined_stack_pos_374)) <--
-        stack_def_use_live_var_at_block_end(block, block_used, (inlined_base_reg_374, inlined_stack_pos_374)),
-        !stack_def_use_ref_in_block(block, (inlined_base_reg_374, inlined_stack_pos_374)),
+    stack_def_use_live_var_at_block_end(prev_block, block_used, stack_var) <--
+        stack_def_use_live_var_at_block_end(block, block_used, stack_var),
+        !stack_def_use_ref_in_block(block, stack_var),
+        let (inlined_base_reg_374, inlined_stack_pos_374) = stack_var,
         !reg_def_use_defined_in_block(block, inlined_base_reg_374),
         block_next(prev_block, _, block);
 
@@ -1178,57 +1180,66 @@ ascent! {
         block_next(prev_block, _, block),
         stack_def_use_live_var_used(block, var, _, _, _, _);
 
-    stack_def_use_live_var_at_prior_used(ea_used, block_used, (inlined_base_reg_375, inlined_stack_pos_375)) <--
-        stack_def_use_live_var_at_block_end(block, block_used, (inlined_base_reg_375, inlined_stack_pos_375)),
-        stack_def_use_used_in_block(block, ea_used, (*inlined_base_reg_375, inlined_stack_pos_375), _),
+    stack_def_use_live_var_at_prior_used(ea_used, block_used, stack_var) <--
+        stack_def_use_live_var_at_block_end(block, block_used, stack_var),
+        stack_def_use_used_in_block(block, ea_used, stack_var, _),
+        let (inlined_base_reg_375, inlined_stack_pos_375) = stack_var,
         !reg_def_use_defined_in_block(block, inlined_base_reg_375),
-        !stack_def_use_defined_in_block(block, (inlined_base_reg_375, inlined_stack_pos_375));
+        !stack_def_use_defined_in_block(block, stack_var);
 
     stack_def_use_live_var_used(block, live_var, used_var, ea_used, index, moves) <--
         stack_def_use_live_var_used_in_block(block, block, live_var, used_var, ea_used, index, moves);
 
-    stack_def_use_live_var_used_in_block(block, next_ea, (*base_reg, stack_pos), var_used, ea_used, index, (moves + 1)) <--
+    stack_def_use_live_var_used_in_block(block, next_ea, stack_var, var_used, ea_used, index, (moves + 1)) <--
         adjusts_stack_in_block(block, _, base_reg, _),
-        stack_def_use_live_var_at_block_end(block, block_used, (base_reg, stack_pos)),
-        stack_def_use_live_var_used(block_used, (base_reg, stack_pos), var_used, ea_used, index, moves),
+        stack_def_use_live_var_at_block_end(block, block_used, stack_var),
+        let (base_reg1, stack_pos) = stack_var,
+        if base_reg == base_reg1,
+        stack_def_use_live_var_used(block_used, stack_var, var_used, ea_used, index, moves),
         stack_def_use_moves_limit(moves_limit),
         if moves <= moves_limit,
         block_last_instruction(block, last_ea),
         next(last_ea, next_ea);
 
-    stack_def_use_live_var_used_in_block(block, next_ea, (*base_reg, stack_pos), var_used, ea_used, index, (moves + 1)) <--
+    stack_def_use_live_var_used_in_block(block, next_ea, stack_var, var_used, ea_used, index, (moves + 1)) <--
         stack_base_reg_move(block, _, _, base_reg),
-        stack_def_use_live_var_at_block_end(block, block_used, (base_reg, stack_pos)),
-        stack_def_use_live_var_used(block_used, (base_reg, stack_pos), var_used, ea_used, index, moves),
+        stack_def_use_live_var_at_block_end(block, block_used, stack_var),
+        let (base_reg1, stack_pos) = stack_var,
+        if base_reg == base_reg1,
+        stack_def_use_live_var_used(block_used, stack_var, var_used, ea_used, index, moves),
         stack_def_use_moves_limit(moves_limit),
         if moves <= moves_limit,
         block_last_instruction(block, last_ea),
         next(last_ea, next_ea);
 
-    stack_def_use_live_var_used_in_block(block, ea, (base_reg, stack_pos), (final_base_reg, final_stack_pos), ea_used, index, moves) <--
-        stack_def_use_live_var_used_in_block(block, next, (base_reg, stack_pos), (final_base_reg, final_stack_pos), ea_used, index, moves),
+    stack_def_use_live_var_used_in_block(block, ea, s_var, final_var, ea_used, index, moves) <--
+        stack_def_use_live_var_used_in_block(block, next, s_var, final_var, ea_used, index, moves),
+        let (base_reg, stack_pos) = s_var,
         block_instruction_next(block, ea, next),
         !reg_def_use_def(ea, base_reg),
-        !stack_def_use_def(ea, (base_reg, stack_pos));
+        !stack_def_use_def(ea, s_var);
 
-    stack_def_use_live_var_used_in_block(block, ea, (*base_reg, (stack_pos + offset)), used_var, ea_used, index, moves) <--
-        stack_def_use_live_var_used_in_block(block, next, (*base_reg, stack_pos), used_var, ea_used, index, moves),
+    stack_def_use_live_var_used_in_block(block, ea, (base_reg.clone(), (*stack_pos as i64 + offset) as u64), used_var, ea_used, index, moves) <--
+        stack_def_use_live_var_used_in_block(block, next, stack_var, used_var, ea_used, index, moves),
+        let (base_reg, stack_pos) = stack_var,
         block_instruction_next(block, ea, next),
         adjusts_stack_in_block(_, ea, base_reg, offset),
-        !stack_def_use_def(ea, (base_reg, stack_pos)),
+        !stack_def_use_def(ea, stack_var),
         arch_stack_pointer(base_reg),
-        if (stack_pos + offset) >= 0;
+        if (*stack_pos as i64 + offset) >= 0;
 
-    stack_def_use_live_var_used_in_block(block, ea, (*base_reg, (stack_pos + offset)), used_var, ea_used, index, moves) <--
-        stack_def_use_live_var_used_in_block(block, next, (base_reg, stack_pos), used_var, ea_used, index, moves),
+    stack_def_use_live_var_used_in_block(block, ea, (base_reg.clone(), (*stack_pos as i64 + offset) as u64), used_var, ea_used, index, moves) <--
+        stack_def_use_live_var_used_in_block(block, next, stack_var, used_var, ea_used, index, moves),
+        let (base_reg, stack_pos) = stack_var,
         block_instruction_next(block, ea, next),
         adjusts_stack_in_block(_, ea, base_reg, offset),
-        !stack_def_use_def(ea, (base_reg, stack_pos)),
+        !stack_def_use_def(ea, stack_var),
         !arch_stack_pointer(base_reg);
 
-    stack_def_use_live_var_used_in_block(block, ea, (*src_base_reg, stack_pos), used_var, ea_used, index, moves) <--
-
-        stack_def_use_live_var_used_in_block(block, next, (dst_base_reg, stack_pos), used_var, ea_used, index, moves),
+    stack_def_use_live_var_used_in_block(block, ea, (src_base_reg.clone(), stack_pos.clone()), used_var, ea_used, index, moves) <--
+    
+        stack_def_use_live_var_used_in_block(block, next, dst_var, used_var, ea_used, index, moves),
+        let (dst_base_reg, stack_pos) = dst_var,
         block_instruction_next(block, ea, next),
         stack_base_reg_move(_, ea, src_base_reg, dst_base_reg);
 
@@ -1350,8 +1361,9 @@ ascent! {
 
     value_reg(ea_load, reg2, ea_load, "NONE".to_string(), 0, immediate, 1) <--
         arch_store_immediate(ea_store, _, _, immediate, reg_base_store, "NONE".to_string(), _, stack_pos_store),
-        stack_def_use_def_used(ea_store, (*reg_base_store, *stack_pos_store as Address), ea_load, (*reg_base_load, stack_pos_load), _),
-        arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, stack_pos_load),
+        stack_def_use_def_used(ea_store, (reg_base_store.clone(), stack_pos_store.clone() as u64), ea_load, load_var, _),
+        let (reg_base_load, stack_pos_load) = load_var,
+        arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, *stack_pos_load as i64),
         def_used_for_address(ea_load, reg2, _);
 
     value_reg(ea, reg, ea, "NONE".to_string(), 0, (*target_addr as Number), 1) <--
@@ -1388,11 +1400,12 @@ ascent! {
         track_register(dst);
 
     value_reg_edge(ea_load, reg2, ea_prev, reg1, 1, 0) <--
-        stack_def_use_def_used(ea_store, (*reg_base_store as Register, *stack_pos_store as Address), ea_load, 
-        (*reg_base_load as Register, *stack_pos_load as Address), _),
-            arch_memory_access("STORE".to_string(), ea_store, _, _, reg1, reg_base_store, "NONE".to_string(), _, stack_pos_store),
-            arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, stack_pos_load),
-            reg_def_use_def_used(ea_prev, reg1, ea_store, _);
+        stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _),
+        let (reg_base_store, stack_pos_store) = base_var,
+        let (reg_base_load, stack_pos_load) = load_var,
+        arch_memory_access("STORE".to_string(), ea_store, _, _, reg1, reg_base_store, "NONE".to_string(), _, *stack_pos_store as i64),
+        arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, *stack_pos_load as i64),
+        reg_def_use_def_used(ea_prev, reg1, ea_store, _);
 
     value_reg_limit(ea_jmp, ea_branch, reg, (immediate + branch_offset), branch_lt) <--
         compare_and_jump_immediate(_, ea_jmp, cc, reg, immediate),
@@ -1481,12 +1494,12 @@ ascent! {
     value_reg_unsupported(ea, reg) <--
         def_used_for_address(ea, reg, _),
         arch_memory_access("LOAD".to_string(), ea, _, _, reg, reg_base, _, _, _),
-        if reg_base != "NONE".to_string();
+        if *reg_base != "NONE".to_string();
 
     value_reg_unsupported(ea, reg) <--
         def_used_for_address(ea, reg, _),
         arch_memory_access("LOAD".to_string(), ea, _, _, reg, _, reg_index, _, _),
-        if reg_index != "NONE".to_string();
+        if *reg_index != "NONE".to_string();
 
     // Todo solve this
     // value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps1) <= value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps2) :- 
