@@ -46,7 +46,7 @@ type AccessMode=String;
 type SymbolPosition=String;
 
 // Todo: var not bounded
-type StackVar=(Register, u64);
+type StackVar=(Register, i64);
 
 type ConditionCode=String;
 type Number=i64;
@@ -91,10 +91,20 @@ ascent! {
     relation reg_reg_arithmetic_operation_defs(Address, Register, Address, Register, Address, Register, i64, i64);
     relation relative_jump_table_entry_candidate(Address, Address, u64, Address, Address, i64, i64);
     relation stack_def_use_def_used(Address, StackVar, Address, StackVar, OperandIndex);
+    relation stack_def_use_def_used1(Address, Register, Number, Address, Register, Number, OperandIndex);
+    stack_def_use_def_used(x1, (x2.clone(), x3.clone()), x4, (x5.clone(), x6.clone()), x7) <-- stack_def_use_def_used1(x1, x2, x3, x4, x5, x6, x7);
     relation stack_def_use_live_var_at_block_end(Address, Address, StackVar);
+    relation stack_def_use_live_var_at_block_end1(Address, Address, Register, Number);
+    stack_def_use_live_var_at_block_end(x1, x2, (x3.clone(), x4.clone())) <-- stack_def_use_live_var_at_block_end1(x1, x2, x3, x4);
     relation stack_def_use_live_var_at_prior_used(Address, Address, StackVar);
+    relation stack_def_use_live_var_at_prior_used1(Address, Address, Register, Number);
+    stack_def_use_live_var_at_prior_used(x1, x2, (x3.clone(), x4.clone())) <-- stack_def_use_live_var_at_prior_used1(x1, x2, x3, x4);
     relation stack_def_use_live_var_used(Address, StackVar, StackVar, Address, OperandIndex, u64);
+    relation stack_def_use_live_var_used1(Address, Register, Number, Register, Number, Address, OperandIndex, u64);
+    stack_def_use_live_var_used(x1, (x2.clone(), x3.clone()), (x4.clone(), x5.clone()), x6, x7, x8) <-- stack_def_use_live_var_used1(x1, x2, x3, x4, x5, x6, x7, x8);
     relation stack_def_use_live_var_used_in_block(Address, Address, StackVar, StackVar, Address, OperandIndex, u64);
+    relation stack_def_use_live_var_used_in_block1(Address, Address, Register, Number, Register, Number, Address, OperandIndex, u64);
+    stack_def_use_live_var_used_in_block(x1, x2, (x3.clone(), x4.clone()), (x5.clone(), x6.clone()), x7, x8, x9) <-- stack_def_use_live_var_used_in_block1(x1, x2, x3, x4, x5, x6, x7, x8, x9);
     relation tls_desc_call(Address, Address, Address);
     relation tls_get_addr(Address, Address, Address);
     relation value_reg_edge(Address, Register, Address, Register, i64, i64);
@@ -156,50 +166,12 @@ ascent! {
     //     Immediate:number,BaseReg:reg_nullable,IndexReg:reg_nullable,Mult:number,Offset:number)
     relation arch_store_immediate(Address, OperandIndex, OperandIndex, i64, RegNullable, RegNullable, i64, i64);
 
-    // .decl base_address(ea:address)
     relation base_address(Address);
-
-    // .decl base_relative_operation(EA_relop:address,EA:address)
     relation base_relative_operation(Address, Address);
 
-    // .decl binary_format(Format:symbol)
     relation binary_format(String);
 
-    // .decl block(Block:address)
     relation block(Address);
-
-    // .decl call_tls_get_addr(Call:address,Reg:register)
-    // .decl cmp_immediate_to_reg(EA:address,Reg:register,Imm_index:operand_index,Immediate:number)
-    // .decl cmp_reg_to_reg(EA:address,Reg1:register,Reg2:register)
-    // .decl code_in_block(EA:address,Block:address)
-    // .decl conditional_jump(src:address)
-    // .decl data_access(EA:address,Op_index:operand_index,RegSegment:reg_nullable,RegBase:reg_nullable,RegIndex:reg_nullable,Mult:number,Offset:number,Size:unsigned)
-    // .decl data_segment(Begin:address,End:address)
-    // .decl defined_symbol(ea:address,size:unsigned,type:symbol,scope:symbol,visibility:symbol,sectionIndex:unsigned,originTable:symbol,tableIndex:unsigned,name:symbol)
-    // .decl direct_call(EA:address,Dest:address)
-    // .decl direct_jump(src:address, dest:address)
-    // .decl got_reference_pointer(EA:address)
-    // .decl got_section(name:symbol)
-    // .decl instruction(ea:address,size:unsigned,prefix:symbol,opcode:symbol,
-    //           op1:operand_code,op2:operand_code,op3:operand_code,op4:operand_code,
-    //           immOffset:unsigned,displacementOffset:unsigned)
-    // .decl instruction_displacement_offset(EA:address,Index:operand_index,Offset:unsigned,Size:unsigned)
-    // .decl instruction_get_dest_op(EA:address,Index:operand_index,Op:operand_code)
-    // .decl instruction_get_op(ea:address, index:operand_index, operator:operand_code)
-    // .decl instruction_get_src_op(EA:address,Index:operand_index,Op:operand_code)
-    // .decl instruction_has_relocation(EA:address,Rel:address)
-    // .decl inter_procedural_edge(Src:address,Dest:address)
-    // .decl is_padding(EA:address)
-    // .decl is_xor_reset(EA:address)
-    // .decl limit_reg_op(EA:address,DstReg:register,SrcReg:register,Offset:number)
-    // .decl limit_type_map(CC:condition_code,BranchLT:limit_type,FallthroughLT:limit_type,BranchOffset:number,FallthroughOffset:number)
-    // .decl loaded_section(Beg:address,End:address,Name:symbol)
-    // .decl lsda_callsite_addresses(Start:address,End:address,LandingPad:address)
-    // .decl may_fallthrough(o:address,d:address)
-    // .decl next(n:address,m:address)
-    // .decl no_return_call_propagated(EA:address)
-    // .decl block_instruction_next(Block:address,Before:address,After:address)
-    // .decl block_last_instruction(Block:address,EA:address)
 
     relation block_instruction_next(Address, Address, Address);
     relation block_last_instruction(Address, Address);
@@ -268,36 +240,6 @@ ascent! {
     relation reg_def_use_live_var_def(Address, Register, Register, Address);
     relation reg_def_use_ref_in_block(Address, Register);
 
-    // .decl reg_def_use_return_block_end(Callee:address,CalleeEnd:address,Block:address,BlockEnd:address)
-    // .decl reg_def_use_used(EA:address,Var:register,Index:operand_index)
-    // .decl reg_def_use_used_in_block(Block:address,EA_used:address,Var:register,Index:operand_index)
-    // .decl reg_jump(Src:address,Reg:register)
-    // .decl reg_map(RegIn:input_reg,Reg:register)
-    // .decl reg_used_for(EA:address,Reg:register,Type:symbol)
-    // .decl register_access(EA:address,Register:input_reg,AccessMode:access_mode)
-    // .decl relative_address(EA:address,Size:unsigned,TableStart:address,Reference:address,Dest:address,DestIsFirstOrSecond:symbol)
-    // .decl relative_address_start(EA:address,Size:unsigned,Reference:address,Dest:address, DestIsFirstOrSecond:symbol)
-    // .decl relocation(EA:address,Type:symbol,Name:symbol,Addend:number,SymbolIndex:unsigned,Section:symbol,RelType:symbol)
-    // .decl relocation_adjustment_total(EA:address,Adjustment:number)
-    // .decl simple_data_access_pattern(Address:address,Op_index:unsigned,Size:unsigned,FromWhere:address)
-    // .decl stack_base_reg_move(Block:address,EA:address,Src:register,Dst:register)
-    // .decl stack_def_use_block_last_def(EA:address,EA_def:address,Var:stack_var)
-    // .decl stack_def_use_def(EA:address,Var:stack_var)
-    // .decl stack_def_use_defined_in_block(Block:address,Var:stack_var)
-    // .decl stack_def_use_live_var_def(Block:address,VarIdentity:stack_var,LiveVar:stack_var,EA_def:address)
-    // .decl stack_def_use_moves_limit(Moves:unsigned)
-    // .decl stack_def_use_ref_in_block(Block:address,Var:stack_var)
-    // .decl stack_def_use_used(EA:address,Var:stack_var,Index:operand_index)
-    // .decl stack_def_use_used_in_block(Block:address,EA_used:address,Var:stack_var,Index:operand_index)
-    // .decl step_limit(Limit:unsigned)
-    // .decl step_limit_small(Limit:unsigned)
-    // .decl symbol(ea:address,size:unsigned,type:symbol,scope:symbol,visibility:symbol,sectionIndex:unsigned,originTable:symbol,tableIndex:unsigned,name:symbol)
-    // .decl symbolic_expr_from_relocation(EA:address,Size:unsigned,Symbol:symbol,Offset:number,TargetEA:address)
-    // .decl take_address(Src:address,Address_taken:address)
-    // .decl tls_descriptor(EA:address,Offset:unsigned)
-    // .decl tls_index(EA:address,Offset:unsigned)
-    // .decl tls_segment(Start:address,End:address,Align:unsigned)
-    // .decl track_register(Reg:register)
     relation reg_def_use_return_block_end(Address, Address, Address, Address);
     relation reg_def_use_used(Address, Register, OperandIndex);
     relation reg_def_use_used_in_block(Address, Address, Register, OperandIndex);
@@ -312,13 +254,27 @@ ascent! {
     relation simple_data_access_pattern(Address, u64, u64, Address);
     relation stack_base_reg_move(Address, Address, Register, Register);
     relation stack_def_use_block_last_def(Address, Address, StackVar);
+    relation stack_def_use_block_last_def1(Address, Address, Register, Number);
+    stack_def_use_block_last_def(x1, x2, (x3.clone(), x4.clone())) <-- stack_def_use_block_last_def1(x1, x2, x3, x4);
     relation stack_def_use_def(Address, StackVar);
+    relation stack_def_use_def1(Address, Register, Number);
+    stack_def_use_def(x1, (x2.clone(), x3.clone())) <-- stack_def_use_def1(x1, x2, x3);
     relation stack_def_use_defined_in_block(Address, StackVar);
+    relation stack_def_use_defined_in_block1(Address, Register, Number);
+    stack_def_use_defined_in_block(x1, (x2.clone(), x3.clone())) <-- stack_def_use_defined_in_block1(x1, x2, x3);
     relation stack_def_use_live_var_def(Address, StackVar, StackVar, Address);
+    relation stack_def_use_live_var_def1(Address, Register, Number, Register, Number, Address);
+    stack_def_use_live_var_def(x1, (x2.clone(), x3.clone()), (x4.clone(), x5.clone()), x6) <-- stack_def_use_live_var_def1(x1, x2, x3, x4, x5, x6);
     relation stack_def_use_moves_limit(u64);
     relation stack_def_use_ref_in_block(Address, StackVar);
+    relation stack_def_use_ref_in_block1(Address, Register, Number);
+    stack_def_use_ref_in_block(x1, (x2.clone(), x3.clone())) <-- stack_def_use_ref_in_block1(x1, x2, x3);
     relation stack_def_use_used(Address, StackVar, OperandIndex);
+    relation stack_def_use_used1(Address, Register, Number, OperandIndex);
+    stack_def_use_used(x1, (x2.clone(), x3.clone()), x4) <-- stack_def_use_used1(x1, x2, x3, x4);
     relation stack_def_use_used_in_block(Address, Address, StackVar, OperandIndex);
+    relation stack_def_use_used_in_block1(Address, Address, Register, Number, OperandIndex);
+    stack_def_use_used_in_block(x1, x2, (x3.clone(), x4.clone()), x5) <-- stack_def_use_used_in_block1(x1, x2, x3, x4, x5);
     relation step_limit(u64);
     relation step_limit_small(u64);
     relation symbol(Address, u64, String, String, String, u64, String, u64, String);
@@ -599,7 +555,7 @@ ascent! {
         def_used_for_address(ea_load, reg2, type_here),
         arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, stack_pos_load),
         arch_memory_access("STORE".to_string(), ea_store, _, _, reg1, reg_base_store, "NONE".to_string(), _, stack_pos_store),
-        stack_def_use_def_used(ea_store, (reg_base_store.clone(), *stack_pos_store as u64), ea_load, (reg_base_load.clone(), *stack_pos_load as u64), _),
+        stack_def_use_def_used(ea_store, (reg_base_store.clone(), *stack_pos_store), ea_load, (reg_base_load.clone(), *stack_pos_load), _),
         reg_def_use_def_used(ea_def, reg1, ea_store, _);
 
     flags_and_jump_pair(ea_flags, ea_jmp, cc) <-- 
@@ -1230,7 +1186,7 @@ ascent! {
         !reg_def_use_def(ea, base_reg),
         !stack_def_use_def(ea, s_var);
 
-    stack_def_use_live_var_used_in_block(block, ea, (base_reg.clone(), (*stack_pos as i64 + offset) as u64), used_var, ea_used, index, moves) <--
+    stack_def_use_live_var_used_in_block(block, ea, (base_reg.clone(), *stack_pos as i64 + offset), used_var, ea_used, index, moves) <--
         stack_def_use_live_var_used_in_block(block, next, stack_var, used_var, ea_used, index, moves),
         let (base_reg, stack_pos) = stack_var,
         block_instruction_next(block, ea, next),
@@ -1239,7 +1195,7 @@ ascent! {
         arch_stack_pointer(base_reg),
         if (*stack_pos as i64 + offset) >= 0;
 
-    stack_def_use_live_var_used_in_block(block, ea, (base_reg.clone(), (*stack_pos as i64 + offset) as u64), used_var, ea_used, index, moves) <--
+    stack_def_use_live_var_used_in_block(block, ea, (base_reg.clone(), *stack_pos as i64 + offset), used_var, ea_used, index, moves) <--
         stack_def_use_live_var_used_in_block(block, next, stack_var, used_var, ea_used, index, moves),
         let (base_reg, stack_pos) = stack_var,
         block_instruction_next(block, ea, next),
@@ -1372,7 +1328,7 @@ ascent! {
 
     value_reg(ea_load, reg2, ea_load, "NONE".to_string(), 0, immediate, 1) <--
         arch_store_immediate(ea_store, _, _, immediate, reg_base_store, "NONE".to_string(), _, stack_pos_store),
-        stack_def_use_def_used(ea_store, (reg_base_store.clone(), stack_pos_store.clone() as u64), ea_load, load_var, _),
+        stack_def_use_def_used(ea_store, (reg_base_store.clone(), stack_pos_store.clone()), ea_load, load_var, _),
         let (reg_base_load, stack_pos_load) = load_var,
         arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, *stack_pos_load as i64),
         def_used_for_address(ea_load, reg2, _);
@@ -1904,36 +1860,36 @@ fn main() {
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.stack_def_use_block_last_def = read_csv::<(Address, Address, StackVar)>(&get_path("stack_def_use.block_last_def.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
-
-    program.stack_def_use_def = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.def.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
-
-    program.stack_def_use_defined_in_block = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.defined_in_block.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
-
-    program.stack_def_use_live_var_def = read_csv::<(Address, StackVar, StackVar, Address)>(&get_path("stack_def_use.live_var_def.csv"))
+    program.stack_def_use_block_last_def1 = read_csv::<(Address, Address, Register, Number)>(&get_path("stack_def_use_block_last_def.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.stack_def_use_moves_limit = read_csv::<(u64,)>(&get_path("stack_def_use.moves_limit.csv"))
+    program.stack_def_use_def1 = read_csv::<(Address, Register, Number)>(&get_path("stack_def_use_def.csv"))
+        .map(|(a, b, c)| (a, b, c))
+        .collect_vec();
+
+    program.stack_def_use_defined_in_block1 = read_csv::<(Address, Register, Number)>(&get_path("stack_def_use_defined_in_block.csv"))
+        .map(|(a, b, c)| (a, b, c))
+        .collect_vec();
+
+    program.stack_def_use_live_var_def1 = read_csv::<(Address, Register, Number, Register, Number, Address)>(&get_path("stack_def_use_live_var_def.csv"))
+        .map(|(a, b, c, d, e, f)| (a, b, c, d, e, f))
+        .collect_vec();
+
+    program.stack_def_use_moves_limit = read_csv::<(u64,)>(&get_path("stack_def_use_moves_limit.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.stack_def_use_ref_in_block = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.ref_in_block.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
-
-    program.stack_def_use_used = read_csv::<(Address, StackVar, OperandIndex)>(&get_path("stack_def_use.used.csv"))
+    program.stack_def_use_ref_in_block1 = read_csv::<(Address, Register, Number)>(&get_path("stack_def_use_ref_in_block.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.stack_def_use_used_in_block = read_csv::<(Address, Address, StackVar, OperandIndex)>(&get_path("stack_def_use.used_in_block.csv"))
+    program.stack_def_use_used1 = read_csv::<(Address, Register, Number, OperandIndex)>(&get_path("stack_def_use_used.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
+        .collect_vec();
+
+    program.stack_def_use_used_in_block1 = read_csv::<(Address, Address, Register, Number, OperandIndex)>(&get_path("stack_def_use_used_in_block.csv"))
+        .map(|(a, b, c, d, e)| (a, b, c, d, e))
         .collect_vec();
 
     program.step_limit = read_csv::<(u64,)>(&get_path("step_limit.csv"))
