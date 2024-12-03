@@ -9,3 +9,7 @@ csv="1.0.0"
 serde="1.0.193"
 itertools = "0.13.0"
 libc = "0.2.167"
+
+[features]
+par = ["ascent/par"]
+default = ["par"]

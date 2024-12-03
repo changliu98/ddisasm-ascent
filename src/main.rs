@@ -1,6 +1,7 @@
 // use ascent::ascent;
 use std::process::Command;
 use std::cmp::max;
+use std::borrow::Borrow;
 
 use ascent::*;
 use itertools::Itertools;
@@ -32,23 +33,28 @@ where
         .map(|x| x.unwrap())
 }
 
+fn leak<T: Borrow<TB> + 'static, TB: ?Sized>(x: T) -> &'static TB {
+    let leaked: &'static T = Box::leak(Box::new(x));
+    leaked.borrow()
+ }
 
-type InputReg=String;
-type RegNullable=String;
-type Register=String;
+
+type InputReg= &'static str;
+type RegNullable=&'static str;
+type Register=&'static str;
 type Address=u64;
 type OperandCode=u64;
 type OperandIndex=u64;
 
-type LimitType=String;
+type LimitType=&'static str;
 
-type AccessMode=String;
-type SymbolPosition=String;
+type AccessMode=&'static str;
+type SymbolPosition=&'static str;
 
 // Todo: var not bounded
 type StackVar=(Register, i64);
 
-type ConditionCode=String;
+type ConditionCode=&'static str;
 type Number=i64;
 
 use libc::size_t;
@@ -60,7 +66,7 @@ extern "C" {
     fn functor_data_unsigned(ea: u64, size: size_t) -> i64;
 }
 
-ascent! {
+ascent_par! {
     #![measure_rule_times]
     struct DDisasm;
     relation value_reg(Address, Register, Address, RegNullable, Number, Number, u64);
@@ -113,9 +119,9 @@ ascent! {
     relation adjusts_stack_in_block(Address, Address, Register, i64);
     relation after_end(Address, Address);
     relation arch_call(Address, OperandIndex);
-    relation arch_cmp_operation(String);
+    relation arch_cmp_operation(&'static str);
     // .decl arch_cmp_zero_operation(Operation:symbol)
-    relation arch_cmp_zero_operation(String);
+    relation arch_cmp_zero_operation(&'static str);
 
     // .decl arch_condition_flags_reg(Reg:register)
     relation arch_condition_flags_reg(Register);
@@ -169,7 +175,7 @@ ascent! {
     relation base_address(Address);
     relation base_relative_operation(Address, Address);
 
-    relation binary_format(String);
+    relation binary_format(&'static str);
 
     relation block(Address);
 
@@ -182,12 +188,12 @@ ascent! {
     relation conditional_jump(Address);
     relation data_access(Address, OperandIndex, RegNullable, RegNullable, RegNullable, i64, i64, u64);
     relation data_segment(Address, Address);
-    relation defined_symbol(Address, u64, String, String, String, u64, String, u64, String);
+    relation defined_symbol(Address, u64, &'static str, &'static str, &'static str, u64, &'static str, u64, &'static str);
     relation direct_call(Address, Address);
     relation direct_jump(Address, Address);
     relation got_reference_pointer(Address);
-    relation got_section(String);
-    relation instruction(Address, u64, String, String, OperandCode, OperandCode, OperandCode, OperandCode, u64, u64);
+    relation got_section(&'static str);
+    relation instruction(Address, u64, &'static str, &'static str, OperandCode, OperandCode, OperandCode, OperandCode, u64, u64);
     relation instruction_displacement_offset(Address, OperandIndex, u64, u64);
     relation instruction_get_dest_op(Address, OperandIndex, OperandCode);
     relation instruction_get_op(Address, OperandIndex, OperandCode);
@@ -198,7 +204,7 @@ ascent! {
     relation is_xor_reset(Address);
     relation limit_reg_op(Address, Register, Register, i64);
     relation limit_type_map(ConditionCode, LimitType, LimitType, i64, i64);
-    relation loaded_section(Address, Address, String);
+    relation loaded_section(Address, Address, &'static str);
     relation lsda_callsite_addresses(Address, Address, Address);
     relation may_fallthrough(Address, Address);
     relation next(Address, Address);
@@ -225,7 +231,7 @@ ascent! {
     // .decl reg_def_use_ref_in_block(Block:address,Var:register)
     relation no_value_reg_limit(Address);
     relation op_immediate(OperandCode, i64, u64);
-    relation op_immediate_and_reg(Address, String, Register, OperandIndex, i64);
+    relation op_immediate_and_reg(Address, &'static str, Register, OperandIndex, i64);
     relation op_indirect(OperandCode, InputReg, InputReg, InputReg, i64, i64, u64);
     relation op_indirect_mapped(OperandCode, RegNullable, RegNullable, RegNullable, i64, i64, u64);
     relation op_regdirect(OperandCode, InputReg);
@@ -245,11 +251,11 @@ ascent! {
     relation reg_def_use_used_in_block(Address, Address, Register, OperandIndex);
     relation reg_jump(Address, Register);
     relation reg_map(InputReg, Register);
-    relation reg_used_for(Address, Register, String);
+    relation reg_used_for(Address, Register, &'static str);
     relation register_access(Address, InputReg, AccessMode);
-    relation relative_address(Address, u64, Address, Address, Address, String);
-    relation relative_address_start(Address, u64, Address, Address, String);
-    relation relocation(Address, String, String, i64, u64, String, String);
+    relation relative_address(Address, u64, Address, Address, Address, &'static str);
+    relation relative_address_start(Address, u64, Address, Address, &'static str);
+    relation relocation(Address, &'static str, &'static str, i64, u64, &'static str, &'static str);
     relation relocation_adjustment_total(Address, i64);
     relation simple_data_access_pattern(Address, u64, u64, Address);
     relation stack_base_reg_move(Address, Address, Register, Register);
@@ -277,20 +283,13 @@ ascent! {
     stack_def_use_used_in_block(x1, x2, (x3.clone(), x4.clone()), x5) <-- stack_def_use_used_in_block1(x1, x2, x3, x4, x5);
     relation step_limit(u64);
     relation step_limit_small(u64);
-    relation symbol(Address, u64, String, String, String, u64, String, u64, String);
-    relation symbolic_expr_from_relocation(Address, u64, String, i64, Address);
+    relation symbol(Address, u64, &'static str, &'static str, &'static str, u64, &'static str, u64, &'static str);
+    relation symbolic_expr_from_relocation(Address, u64, &'static str, i64, Address);
     relation take_address(Address, Address);
     relation tls_descriptor(Address, u64);
     relation tls_index(Address, u64);
     relation tls_segment(Address, Address, u64);
     relation track_register(Register);
-
-    // block_next(Block,EA,Block2) <-- 
-    // block_last_instruction(Block,EA),
-    // may_fallthrough(EA,Block2),
-    // !no_return_call_propagated(EA),
-    // !inter_procedural_edge(EA,Block2),
-    // block(Block2).
 
     block_next(block, ea, block2) <-- 
         block_last_instruction(block, ea),
@@ -299,12 +298,6 @@ ascent! {
         !inter_procedural_edge(ea, block2),
         block(block2);
 
-    // block_next(Block,EA,Block2) <-- 
-    //     lsda_callsite_addresses(Beg,End,Block2),
-    //     block_last_instruction(Block,EA),
-    //     EA >= Beg,
-    //     EA < End,
-    //     block(Block2).
     block_next(block, ea, block2) <-- 
         lsda_callsite_addresses(beg, end, block2),
         block_last_instruction(block, ea),
@@ -312,22 +305,11 @@ ascent! {
         if ea < end,
         block(block2);
 
-    // block_next(Block,EA,EA_next) <-- 
-    //     block_last_instruction(Block,EA),
-    //     direct_jump(EA,EA_next),
-    //     !inter_procedural_edge(EA,EA_next).
     block_next(block, ea, ea_next) <-- 
         block_last_instruction(block, ea),
         direct_jump(ea, ea_next),
         !inter_procedural_edge(ea, ea_next);
-
-    // compare_and_jump_immediate(EA,EA,CC,Reg,0) <-- 
-    //     instruction(EA,_,_,Operation,_,_,_,_,_,_),
-    //     arch_cmp_zero_operation(Operation),
-    //     arch_jump(EA),
-    //     arch_conditional(EA,CC),
-    //     instruction_get_op(EA,_,Op),
-    //     op_regdirect_contains_reg(Op,Reg).        
+      
     compare_and_jump_immediate(ea, ea, cc, reg, 0) <-- 
         instruction(ea, _, _, operation, _, _, _, _, _, _),
         arch_cmp_zero_operation(operation),
@@ -342,7 +324,7 @@ ascent! {
         arch_jump(ea),
         arch_conditional(ea, cc),
         instruction_get_op(ea, _, op),
-        register_access(ea, reg_in, "R".to_string()),
+        register_access(ea, reg_in, "R"),
         reg_map(reg_in, reg),
         !op_regdirect_contains_reg(op, reg);
 
@@ -351,7 +333,7 @@ ascent! {
         arch_jump(ea),
         arch_conditional(ea, cc);
 
-    def_used_for_address(ea, reg, "PCRelative".to_string()) <-- 
+    def_used_for_address(ea, reg, "PCRelative") <-- 
         arch_pc_relative_addr(ea, reg, _);
 
     got_relative_operand(ea, index, (((*target_ea as Number) + addend) + adjustment) as Address) <-- 
@@ -359,20 +341,20 @@ ascent! {
         instruction_displacement_offset(ea, index, displacement_offset, _),
         let tmp_53 = ea + displacement_offset,
         relocation_adjustment_total(tmp_53, adjustment),
-        relocation(tmp_53, "GOTOFF".to_string(), symbol, addend, symbol_index, _, _);
+        relocation(tmp_53, "GOTOFF", symbol, addend, symbol_index, _, _);
 
     // TODO: why mult is same as size?
     jump_table_element_access(ea, size, (*table_start as Address), (reg_index.clone() as Register)) <-- 
-        data_access(ea, _, "NONE".to_string(), "NONE".to_string(), reg_index, mult, table_start, size),
+        data_access(ea, _, "NONE", "NONE", reg_index, mult, table_start, size),
         if *mult as u64 == *size,
-        if reg_index != "NONE",
+        if *reg_index != "NONE",
         data_segment(beg, end),
         if *table_start as Address >= *beg,
         if *table_start as Address <= *end;
 
-    jump_table_element_access(ea, 1, (*table_start as Address), (reg_base_copy.to_string() as Register)) <-- 
-        data_access(ea, _, "NONE".to_string(), reg_base, "NONE".to_string(), _, table_start, 1),
-        if reg_base != "NONE",
+    jump_table_element_access(ea, 1, (*table_start as Address), (reg_base_copy as Register)) <-- 
+        data_access(ea, _, "NONE", reg_base, "NONE", _, table_start, 1),
+        if *reg_base != "NONE",
         let reg_base_copy = reg_base.clone(),
         data_segment(beg, end),
         if (*table_start as Address) >= *beg,
@@ -392,20 +374,20 @@ ascent! {
         pc_relative_operand(ea, _, image_base),
         code_in_block(ea, _),
         reg_def_use_def(ea, reg),
-        instruction(ea, _, _, inlined_operation_773.to_string(), _, _, _, _, _, _);
+        instruction(ea, _, _, inlined_operation_773, _, _, _, _, _, _);
 
     reg_has_base_image(ea_code, reg) <-- 
-        binary_format("PE".to_string()),
+        binary_format("PE"),
         base_address(image_base),
         code_in_block(ea_code, _),
-        arch_memory_access("LOAD".to_string(), ea_code, _, _, _, _, _, _, _),
+        arch_memory_access("LOAD", ea_code, _, _, _, _, _, _, _),
         pc_relative_operand(ea_code, _, ea_data),
         if unsafe {functor_data_valid(*ea_data, 8) == 1},
         if *image_base == unsafe {functor_data_signed(*ea_data, 8)} as Address,
         reg_def_use_def(ea_code, reg);
 
     relative_jump_table_entry_candidate(ea, table_start, 1, refr, dest, 4, 0) <-- 
-        relative_address(ea, 1, table_start, refr, dest, "first".to_string()),
+        relative_address(ea, 1, table_start, refr, dest, "first"),
         if dest < table_start,
         relative_address_start(refr, 4, _, _, _),
         loaded_section(start, end, _),
@@ -421,14 +403,14 @@ ascent! {
     stack_def_use_live_var_used_in_block(block, ea_used, x, x, ea_used, index, 0) <-- 
         stack_def_use_used_in_block(block, ea_used, x, index);
 
-    value_reg(ea, reg, ea, "NONE".to_string(), 0, (*val as Number), 1) <-- 
+    value_reg(ea, reg, ea, "NONE", 0, (*val as Number), 1) <-- 
         arch_pc_relative_addr(ea, reg, val),
         track_register(reg);
 
-    value_reg(ea, reg, ea, "NONE".to_string(), 0, (((ea + size) as Number) + offset), 1) <-- 
+    value_reg(ea, reg, ea, "NONE", 0, (((ea + size) as Number) + offset), 1) <-- 
         let pc_reg = "RIP",
         code_in_block(ea, _),
-        arch_reg_arithmetic_operation(ea, reg, pc_reg.to_string(), 1, offset),
+        arch_reg_arithmetic_operation(ea, reg, pc_reg, 1, offset),
         instruction(ea, size, _, _, _, _, _, _, _, _),
         !instruction_has_relocation(ea, _),
         track_register(reg);
@@ -449,20 +431,20 @@ ascent! {
     base_relative_operand(ea_def2, op_index_access, rva) <-- 
         reg_has_base_image(ea_def1, reg1),
         reg_def_use_def_used(ea_def1, reg1, ea, _),
-        data_access(ea_def2, op_index_access, "NONE".to_string(), "NONE".to_string(), _, 4, offset, _),
+        data_access(ea_def2, op_index_access, "NONE", "NONE", _, 4, offset, _),
         if *offset > 0,
         reg_def_use_def_used(ea_def2, reg2, ea, _),
         possible_rva_operand(ea_def2, op_index_access, rva),
-        data_access(ea, _, "NONE".to_string(), reg1, reg2, 1, _, _);
+        data_access(ea, _, "NONE", reg1, reg2, 1, _, _);
 
     base_relative_operand(ea_def2, op_index_access, rva) <-- 
         reg_has_base_image(ea_def1, reg1),
         reg_def_use_def_used(ea_def1, reg1, ea, _),
-        data_access(ea_def2, op_index_access, "NONE".to_string(), "NONE".to_string(), _, 4, offset, _),
+        data_access(ea_def2, op_index_access, "NONE", "NONE", _, 4, offset, _),
         if *offset > 0,
         reg_def_use_def_used(ea_def2, reg2, ea, _),
         possible_rva_operand(ea_def2, op_index_access, rva),
-        data_access(ea, _, "NONE".to_string(), reg2, reg1, 1, _, _);
+        data_access(ea, _, "NONE", reg2, reg1, 1, _, _);
 
     base_relative_operand(ea_def1, op_index, (*value as Address)) <-- 
         reg_has_base_image(ea_def2, reg2),
@@ -470,32 +452,29 @@ ascent! {
         arch_reg_reg_arithmetic_operation(ea, reg1, *reg1, &*reg2, 1, 0),
         reg_def_use_def_used(ea_def1, reg1, ea, _),
         instruction_get_op(ea_def1, op_index, op),
-        instruction(ea_def1, _, _, inlined_operation_41, _, _, _, _, _, _),
-        if inlined_operation_41 == "LEA",
+        instruction(ea_def1, _, _, "LEA", _, _, _, _, _, _),
         op_indirect(op, _, _, _, _, value, _),
         if *value > 0;
 
     base_relative_operand(ea_def1, op_index, (*value as Address)) <-- 
         reg_has_base_image(ea_def2, reg2),
         reg_def_use_def_used(ea_def2, reg2, ea, op_index_access),
-        data_access(ea, op_index_access, "NONE".to_string(), reg2, reg1, 1, 0, _),
-        !instruction(ea, _, _, "LEA".to_string(), _, _, _, _, _, _),
+        data_access(ea, op_index_access, "NONE", reg2, reg1, 1, 0, _),
+        !instruction(ea, _, _, "LEA", _, _, _, _, _, _),
         reg_def_use_def_used(ea_def1, reg1, ea, _),
         instruction_get_op(ea_def1, op_index, op),
-        instruction(ea_def1, _, _, inlined_operation_497, _, _, _, _, _, _),
-        if inlined_operation_497 == "LEA",
+        instruction(ea_def1, _, _, "LEA", _, _, _, _, _, _),
         op_indirect(op, _, _, _, _, value, _),
         if *value > 0;
 
     base_relative_operand(ea_def1, op_index, (*value as Address)) <-- 
         reg_has_base_image(ea_def2, reg2),
         reg_def_use_def_used(ea_def2, reg2, ea, op_index_access),
-        data_access(ea, op_index_access, "NONE".to_string(), reg1, reg2, 1, 0, _),
-        !instruction(ea, _, _, "LEA".to_string(), _, _, _, _, _, _),
+        data_access(ea, op_index_access, "NONE", reg1, reg2, 1, 0, _),
+        !instruction(ea, _, _, "LEA", _, _, _, _, _, _),
         reg_def_use_def_used(ea_def1, reg1, ea, _),
         instruction_get_op(ea_def1, op_index, op),
-        instruction(ea_def1, _, _, inlined_operation_498, _, _, _, _, _, _),
-        if inlined_operation_498 == "LEA",
+        instruction(ea_def1, _, _, "LEA", _, _, _, _, _, _),
         op_indirect(op, _, _, _, _, value, _),
         if *value > 0;
 
@@ -513,11 +492,11 @@ ascent! {
         jump_table_target(ea, dest);
 
     cmp_defines(ea_jmp, ea_dst, reg) <-- 
-        compare_and_jump_immediate(_, ea_jmp, "E".to_string(), reg, _),
+        compare_and_jump_immediate(_, ea_jmp, "E", reg, _),
         direct_jump(ea_jmp, ea_dst);
 
     cmp_defines(ea_jmp, ea_dst, reg) <-- 
-        compare_and_jump_immediate(_, ea_jmp, "NE".to_string(), reg, _),
+        compare_and_jump_immediate(_, ea_jmp, "NE", reg, _),
         may_fallthrough(ea_jmp, ea_dst);
 
     compare_and_jump_immediate(ea_cmp, ea_jmp, cc, reg, immediate) <-- 
@@ -540,7 +519,7 @@ ascent! {
         cmp_reg_to_reg(ea_cmp, reg1, reg2);
 
     const_value_reg_used(used_ea, ea_def, ea_reg_def, reg, value) <-- 
-        value_reg(ea_reg_def, reg, ea_def, "NONE".to_string(), 0, value, _),
+        value_reg(ea_reg_def, reg, ea_def, "NONE", 0, value, _),
         reg_def_use_def_used(ea_reg_def, reg, used_ea, _);
 
         def_used_for_address(ea_def, reg, type_here) <-- 
@@ -553,8 +532,8 @@ ascent! {
 
     def_used_for_address(ea_def, reg1, type_here) <-- 
         def_used_for_address(ea_load, reg2, type_here),
-        arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, stack_pos_load),
-        arch_memory_access("STORE".to_string(), ea_store, _, _, reg1, reg_base_store, "NONE".to_string(), _, stack_pos_store),
+        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
+        arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, stack_pos_store),
         stack_def_use_def_used(ea_store, (reg_base_store.clone(), *stack_pos_store), ea_load, (reg_base_load.clone(), *stack_pos_load), _),
         reg_def_use_def_used(ea_def, reg1, ea_store, _);
 
@@ -576,7 +555,7 @@ ascent! {
         reg_has_got(ea_base, reg),
         reg_def_use_def_used(ea_base, reg, ea, index),
         instruction_get_op(ea, index, op),
-        op_indirect_mapped(op, "NONE".to_string(), reg, _, _, offset, _),
+        op_indirect_mapped(op, "NONE", reg, _, _, offset, _),
         if *offset != 0,
         got_reference_pointer(got);
 
@@ -584,15 +563,15 @@ ascent! {
         reg_has_got(ea_base, reg),
         reg_def_use_def_used(ea_base, reg, ea, index),
         instruction_get_op(ea, index, op),
-        op_indirect_mapped(op, "NONE".to_string(), _, reg, 1, offset, _),
+        op_indirect_mapped(op, "NONE", _, reg, 1, offset, _),
         if *offset != 0,
         got_reference_pointer(got);
 
-    jump_table_element_access(ea, size, table_start_addr, "NONE".to_string()) <-- 
+    jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
         pc_relative_operand(ea, 1, table_start_addr),
         data_access(ea, _, _, _, _, _, _, size),
         def_used_for_address(ea, _, type_here),
-        if *type_here == "Jump".to_string(),
+        if *type_here == "Jump",
         reg_def_use_def_used(ea, reg1, ea_add, _),
         reg_def_use_def_used(ea2, reg2, ea_add, _),
         take_address(ea2, table_start_addr),
@@ -601,11 +580,11 @@ ascent! {
         if table_start_addr >= beg,
         if table_start_addr <= end;
 
-    jump_table_element_access(ea, size, table_start_addr, "NONE".to_string()) <-- 
+    jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
         pc_relative_operand(ea, 1, table_start_addr),
         data_access(ea, _, _, _, _, _, _, size),
         def_used_for_address(ea, _, type_here),
-        if *type_here == "Call".to_string(),
+        if *type_here == "Call",
         reg_def_use_def_used(ea, reg1, ea_add, _),
         reg_def_use_def_used(ea2, reg2, ea_add, _),
         take_address(ea2, table_start_addr),
@@ -615,9 +594,9 @@ ascent! {
         if table_start_addr <= end;
 
     jump_table_element_access(ea, size, table_start_u64, reg_base) <-- 
-        data_access(ea, _, "NONE".to_string(), reg_base, reg_index, 1, 0, size),
-        if *reg_base != "NONE".to_string(),
-        if *reg_index != "NONE".to_string(),
+        data_access(ea, _, "NONE", reg_base, reg_index, 1, 0, size),
+        if *reg_base != "NONE",
+        if *reg_index != "NONE",
         const_value_reg_used(ea, _, _, reg_index, table_start),
         let table_start_u64 = *table_start as Address,
         data_segment(beg, end),
@@ -625,8 +604,8 @@ ascent! {
         if table_start_u64 <= *end;
 
     jump_table_element_access(ea, size, ((base + offset) as Address), reg_index) <-- 
-        data_access(ea, _, "NONE".to_string(), reg_base, reg_index, _, offset, size),
-        if *reg_base != "NONE".to_string(),
+        data_access(ea, _, "NONE", reg_base, reg_index, _, offset, size),
+        if *reg_base != "NONE",
         const_value_reg_used(ea, _, _, reg_base, base),
         data_segment(beg, end),
         if *base + *offset >= *beg as Number,
@@ -636,14 +615,14 @@ ascent! {
         jump_table_element_access(ea, size, table_start, reg_index),
         code_in_block(ea, block),
         !reg_def_use_block_last_def(ea, _, reg_index),
-        last_value_reg_limit(_, block, reg_index, value, "MAX".to_string(), _),
+        last_value_reg_limit(_, block, reg_index, value, "MAX", _),
         if *value >= 0;
 
     jump_table_max(table_start, table_start + (*value as Address) * *size) <-- 
         jump_table_element_access(ea, size, table_start, reg_index),
         code_in_block(ea, _),
         reg_def_use_block_last_def(ea, ea_def, reg_index),
-        last_value_reg_limit(ea_def, _, reg_index, value, "MAX".to_string(), _),
+        last_value_reg_limit(ea_def, _, reg_index, value, "MAX", _),
         if *value >= 0;
 
     jump_table_max(table_start2, (*table_start2 as i64 + fdu) as u64) <-- 
@@ -693,7 +672,7 @@ ascent! {
     jump_table_start(ea_jump, size, table_start, (*base as Address), scale) <-- 
         jump_table_element_access(ea, size, table_start, _),
         value_reg(ea_add, reg_jump, ea, reg, scale, base, _),
-        if *reg != "NONE".to_string(),
+        if *reg != "NONE",
         reg_def_use_def_used(ea_add, reg_jump, ea_jump, _),
         reg_call(ea_jump, _),
         code_in_block(ea_jump, _);
@@ -701,7 +680,7 @@ ascent! {
     jump_table_start(ea_jump, size, table_start, (*base as Address), scale) <-- 
         jump_table_element_access(ea, size, table_start, _),
         value_reg(ea_add, reg_jump, ea, reg, scale, base, _),
-        if *reg != "NONE".to_string(),
+        if *reg != "NONE",
         reg_def_use_def_used(ea_add, reg_jump, ea_jump, _),
         reg_jump(ea_jump, _),
         code_in_block(ea_jump, _);
@@ -710,7 +689,7 @@ ascent! {
         code_in_block(ea_jump, _),
         reg_def_use_def_used(ea_base, reg, ea_jump, _),
         instruction(ea_base, _, _, inlined_operation_591, _, _, _, _, _, _),
-        if *inlined_operation_591 == "ADD".to_string(),
+        if *inlined_operation_591 == "ADD",
         jump_table_element_access(ea_base, size, _tmp_73, _),
         const_value_reg_used(ea_base, _, _, reg, table_reference),
         if *_tmp_73 == (*table_reference as Address);
@@ -720,7 +699,7 @@ ascent! {
         code_in_block(ea_jump, _),
         reg_def_use_def_used(ea_base, reg, ea_jump, _),
         instruction(ea_base, _, _, inlined_operation_593, _, _, _, _, _, _),
-        if *inlined_operation_593 == "SUB".to_string(),
+        if *inlined_operation_593 == "SUB",
         jump_table_element_access(ea_base, size, _tmp_74, _),
         const_value_reg_used(ea_base, _, _, reg, table_reference),
         if *_tmp_74 == (*table_reference as Address);
@@ -730,7 +709,7 @@ ascent! {
         code_in_block(ea_jump, _),
         reg_def_use_def_used(ea_base, reg, ea_jump, _),
         instruction(ea_base, _, _, inlined_operation_590, _, _, _, _, _, _),
-        if *inlined_operation_590 == "ADD".to_string(),
+        if *inlined_operation_590 == "ADD",
         jump_table_element_access(ea_base, size, table_start, _),
         const_value_reg_used(ea_base, _, _, reg, table_reference),
         code_in_block(_tmp_153, _),
@@ -741,7 +720,7 @@ ascent! {
         code_in_block(ea_jump, _),
         reg_def_use_def_used(ea_base, reg, ea_jump, _),
         instruction(ea_base, _, _, inlined_operation_592, _, _, _, _, _, _),
-        if *inlined_operation_592 == "SUB".to_string(),
+        if *inlined_operation_592 == "SUB",
         jump_table_element_access(ea_base, size, table_start, _),
         const_value_reg_used(ea_base, _, _, reg, table_reference),
         code_in_block(_tmp_154, _),
@@ -810,8 +789,8 @@ ascent! {
         block_next(block, block_end, block_next),
         !reg_def_use_defined_in_block(block, propagated_reg),
         value_reg_limit(block_end, block_next, propagated_reg, val, type_here),
-        if *propagated_type == "MAX".to_string(),
-        if *type_here == "MAX".to_string(),
+        if *propagated_type == "MAX",
+        if *type_here == "MAX",
         if propagated_val < val;
 
     last_value_reg_limit(block_end, block_next, propagated_reg, propagated_val, propagated_type, steps + 1) <-- 
@@ -822,8 +801,8 @@ ascent! {
         block_next(block, block_end, block_next),
         !reg_def_use_defined_in_block(block, propagated_reg),
         value_reg_limit(block_end, block_next, propagated_reg, val, type_here),
-        if *propagated_type == "MIN".to_string(),
-        if *type_here == "MIN".to_string(),
+        if *propagated_type == "MIN",
+        if *type_here == "MIN",
         if propagated_val > val;
 
     last_value_reg_limit(block_end, ea_next, dst_reg, propagated_val + offset, propagated_type, steps + 1) <-- 
@@ -886,27 +865,27 @@ ascent! {
 
     no_value_reg_limit(ea_jmp) <-- 
         compare_and_jump_immediate(_, ea_jmp, cc, _, _),
-        if *cc == "O".to_string();
+        if *cc == "O";
 
     no_value_reg_limit(ea_jmp) <-- 
         compare_and_jump_immediate(_, ea_jmp, cc, _, _),
-        if *cc == "NO".to_string();
+        if *cc == "NO";
 
     no_value_reg_limit(ea_jmp) <-- 
         compare_and_jump_immediate(_, ea_jmp, cc, _, _),
-        if *cc == "P".to_string();
+        if *cc == "P";
 
     no_value_reg_limit(ea_jmp) <-- 
         compare_and_jump_immediate(_, ea_jmp, cc, _, _),
-        if *cc == "PE".to_string();
+        if *cc == "PE";
 
     no_value_reg_limit(ea_jmp) <-- 
         compare_and_jump_immediate(_, ea_jmp, cc, _, _),
-        if *cc == "S".to_string();
+        if *cc == "S";
 
     no_value_reg_limit(ea_jmp) <-- 
         compare_and_jump_immediate(_, ea_jmp, cc, _, _),
-        if *cc == "NS".to_string();
+        if *cc == "NS";
 
     no_value_reg_limit(ea_jmp) <-- 
         compare_and_jump_register(ea_cmp, ea_jmp, _, reg1, reg2),
@@ -988,7 +967,7 @@ ascent! {
         if *mult > 1;
 
     reg_has_got(ea, reg) <--
-        value_reg(ea, reg, _, "NONE".to_string(), _, offset, _),
+        value_reg(ea, reg, _, "NONE", _, offset, _),
         got_section(name),
         loaded_section(tmp_88, _, name),
         if *tmp_88 == (*offset as Address);
@@ -1227,23 +1206,23 @@ ascent! {
         if *_tmp_138 == (*ea as Number);
 
     tls_get_addr(load, call, (start + offset)) <--
-        binary_format("ELF".to_string()),
+        binary_format("ELF"),
         pc_relative_operand(load, _, ea),
         tls_index(ea, offset),
         reg_def_use_def_used(load, reg, call, _),
         call_tls_get_addr(call, reg),
         tls_segment(start, _, _);
 
-    value_reg(ea, reg, ea, "None".to_string(), 0, immediate, 1) <--
+    value_reg(ea, reg, ea, "None", 0, immediate, 1) <--
         def_used_for_address(ea, reg, _),
         arch_move_reg_imm(ea, reg, immediate, _),
         !instruction_has_relocation(ea, _);
 
-    value_reg(ea, reg, ea, "None".to_string(), 0, 0, 1) <--
+    value_reg(ea, reg, ea, "None", 0, 0, 1) <--
         def_used_for_address(ea, reg, _),
         is_xor_reset(ea);
 
-    value_reg(ea, reg, ea, "None".to_string(), 0, immediate, 1) <--
+    value_reg(ea, reg, ea, "None", 0, immediate, 1) <--
         def_used_for_address(ea, reg, _),
         reg_def_use_flow_def(ea, reg, _, immediate);
 
@@ -1255,9 +1234,9 @@ ascent! {
         def_used_for_address(ea, reg, _),
         value_reg_unsupported(ea, reg);
 
-    value_reg(ea, reg, ea_from, "Unknown".to_string(), immediate, base, (steps + 1)) <--
+    value_reg(ea, reg, ea_from, "Unknown", immediate, base, (steps + 1)) <--
         step_limit(step_limit),
-        value_reg(ea, reg, ea_from, "None".to_string(), 0, base, steps),
+        value_reg(ea, reg, ea_from, "None", 0, base, steps),
         if *steps <= (step_limit - 2),
         value_reg_edge(ea, reg, ea, reg, 1, immediate),
         if *immediate != 0;
@@ -1276,23 +1255,23 @@ ascent! {
         value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
         if ea1 < ea2;
 
-    value_reg(ea, reg, ea, "None".to_string(), 0, (*address as Number), 1) <--
+    value_reg(ea, reg, ea, "None", 0, (*address as Number), 1) <--
         arch_return_reg(reg),
         tls_get_addr(_, ea, address);
 
-    value_reg(ea, reg, ea, "None".to_string(), 0, (*address as Number), 1) <--
+    value_reg(ea, reg, ea, "None", 0, (*address as Number), 1) <--
         arch_return_reg(reg),
         tls_desc_call(_, ea, address);
 
-        value_reg(ea, reg, ea, "NONE".to_string(), 0, (*address as Number), 1) <--
+        value_reg(ea, reg, ea, "NONE", 0, (*address as Number), 1) <--
         def_used_for_address(ea, reg, _),
         instruction_has_relocation(ea, ea_rel),
         symbolic_expr_from_relocation(ea_rel, _, _, _, address);
 
-    value_reg(ea, reg, ea, "NONE".to_string(), 0, (*offset as Number), 1) <--
-        binary_format("ELF".to_string()),
+    value_reg(ea, reg, ea, "NONE", 0, (*offset as Number), 1) <--
+        binary_format("ELF"),
         got_relative_operand(ea, 1, offset),
-        instruction(ea, _, _, "LEA".to_string(), _, op2, 0, 0, _, _),
+        instruction(ea, _, _, "LEA", _, op2, 0, 0, _, _),
         op_regdirect_contains_reg(op2, reg),
         track_register(reg);
 
@@ -1308,34 +1287,34 @@ ascent! {
     value_reg(ea, reg_def, ea_third, reg3, (mult * mult2), ((offset + offset1) + (offset2 * mult)), (max(*steps1, *steps2) + 2)) <--
         step_limit(step_limit),
         reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset),
-        value_reg(ea_def1, reg1, _, "NONE".to_string(), _, offset1, steps1),
+        value_reg(ea_def1, reg1, _, "NONE", _, offset1, steps1),
         if *steps1 <= (*step_limit - 3),
         value_reg(ea_def2, reg2, ea_third, reg3, mult2, offset2, steps2),
         if *steps2 <= (*step_limit - 3),
         if ea != ea_third,
-        if *reg3 != "NONE".to_string();
+        if *reg3 != "NONE";
 
     // Todo: add max
     value_reg(ea, reg_def, ea_third, reg3, mult1, ((offset + offset1) + (offset2 * mult)), (max(steps1, steps2) + 2)) <--
         step_limit(step_limit),
         reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset),
-        value_reg(ea_def2, reg2, _, "NONE".to_string(), _, offset2, steps2),
+        value_reg(ea_def2, reg2, _, "NONE", _, offset2, steps2),
         if *steps2 <= (*step_limit - 3),
         value_reg(ea_def1, reg1, ea_third, reg3, mult1, offset1, steps1),
         if *steps1 <= (*step_limit - 3),
-        if *reg3 != "NONE".to_string(),
+        if *reg3 != "NONE",
         if ea != ea_third;
 
-    value_reg(ea_load, reg2, ea_load, "NONE".to_string(), 0, immediate, 1) <--
-        arch_store_immediate(ea_store, _, _, immediate, reg_base_store, "NONE".to_string(), _, stack_pos_store),
+    value_reg(ea_load, reg2, ea_load, "NONE", 0, immediate, 1) <--
+        arch_store_immediate(ea_store, _, _, immediate, reg_base_store, "NONE", _, stack_pos_store),
         stack_def_use_def_used(ea_store, (reg_base_store.clone(), stack_pos_store.clone()), ea_load, load_var, _),
         let (reg_base_load, stack_pos_load) = load_var,
-        arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, *stack_pos_load as i64),
+        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, *stack_pos_load as i64),
         def_used_for_address(ea_load, reg2, _);
 
-    value_reg(ea, reg, ea, "NONE".to_string(), 0, (*target_addr as Number), 1) <--
+    value_reg(ea, reg, ea, "NONE", 0, (*target_addr as Number), 1) <--
         def_used_for_address(ea, reg, _),
-        arch_memory_access("LOAD".to_string(), ea, src_op, _, reg, _, _, _, _),
+        arch_memory_access("LOAD", ea, src_op, _, reg, _, _, _, _),
         simple_data_access_pattern(mem_addr, src_op, size, ea),
         if 4 <= *size,
         if *size <= 8,
@@ -1343,9 +1322,9 @@ ascent! {
         defined_symbol(_, _, _, _, _, _, _, _, symbol),
         if (*target_addr as Number) >= 0;
 
-    value_reg(ea, reg, ea, "NONE".to_string(), 0, unsafe {functor_data_signed(*mem_addr, *size as size_t)}, 1) <--
+    value_reg(ea, reg, ea, "NONE", 0, unsafe {functor_data_signed(*mem_addr, *size as size_t)}, 1) <--
         def_used_for_address(ea, reg, _),
-        arch_memory_access("LOAD".to_string(), ea, src_op, _, reg, _, _, _, _),
+        arch_memory_access("LOAD", ea, src_op, _, reg, _, _, _, _),
         simple_data_access_pattern(mem_addr, src_op, size, ea),
         if 4 <= *size,
         if *size <= 8,
@@ -1370,8 +1349,8 @@ ascent! {
         stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _),
         let (reg_base_store, stack_pos_store) = base_var,
         let (reg_base_load, stack_pos_load) = load_var,
-        arch_memory_access("STORE".to_string(), ea_store, _, _, reg1, reg_base_store, "NONE".to_string(), _, *stack_pos_store as i64),
-        arch_memory_access("LOAD".to_string(), ea_load, _, _, reg2, reg_base_load, "NONE".to_string(), _, *stack_pos_load as i64),
+        arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, *stack_pos_store as i64),
+        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, *stack_pos_load as i64),
         reg_def_use_def_used(ea_prev, reg1, ea_store, _);
 
     value_reg_limit(ea_jmp, ea_branch, reg, (immediate + branch_offset), branch_lt) <--
@@ -1429,7 +1408,7 @@ ascent! {
         limit_type_map(cc, branch_lt, _, branch_offset, _),
         next(ea_cmp, ea_jmp),
         direct_jump(ea_jmp, ea_target),
-        arch_memory_access("LOAD".to_string(), ea_target, _, _, reg, _, _, _, _),
+        arch_memory_access("LOAD", ea_target, _, _, reg, _, _, _, _),
         track_register(reg),
         instruction_get_op(ea_target, _, indirect_op),
         code_in_block(ea_target, inlined_block_887),
@@ -1441,7 +1420,7 @@ ascent! {
         limit_type_map(cc, _, fallthrough_lt, _, fallthrough_offset),
         next(ea_cmp, ea_jmp),
         may_fallthrough(ea_jmp, ea_target),
-        arch_memory_access("LOAD".to_string(), ea_target, _, _, reg, _, _, _, _),
+        arch_memory_access("LOAD", ea_target, _, _, reg, _, _, _, _),
         track_register(reg),
         instruction_get_op(ea_target, _, indirect_op),
         code_in_block(ea_target, inlined_block_888),
@@ -1460,13 +1439,13 @@ ascent! {
 
     value_reg_unsupported(ea, reg) <--
         def_used_for_address(ea, reg, _),
-        arch_memory_access("LOAD".to_string(), ea, _, _, reg, reg_base, _, _, _),
-        if *reg_base != "NONE".to_string();
+        arch_memory_access("LOAD", ea, _, _, reg, reg_base, _, _, _),
+        if *reg_base != "NONE";
 
     value_reg_unsupported(ea, reg) <--
         def_used_for_address(ea, reg, _),
-        arch_memory_access("LOAD".to_string(), ea, _, _, reg, _, reg_index, _, _),
-        if *reg_index != "NONE".to_string();
+        arch_memory_access("LOAD", ea, _, _, reg, _, reg_index, _, _),
+        if *reg_index != "NONE";
 
     // Todo solve this
     // value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps1) <= value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps2) :- 
@@ -1499,107 +1478,107 @@ fn main() {
     let path = format!("{}/disassembly/", db_dir);
     let get_path = |x: &str| format!("{path}{x}");
 
-    program.adjusts_stack_in_block = read_csv::<(Address, Address, Register, i64)>(&get_path("adjusts_stack_in_block.csv"))
-        .map(|(x, y, z, xx)| (x, y, z, xx))
-        .collect_vec();
+    program.adjusts_stack_in_block = read_csv::<(Address, Address, String, i64)>(&get_path("adjusts_stack_in_block.csv"))
+        .map(|(x, y, z, xx)| (x, y, leak(z), xx))
+        .collect();
     program.after_end = read_csv::<(Address, Address)>(&get_path("after_end.csv"))
         .map(|(x, y)| (x, y))
-        .collect_vec();
+        .collect();
 
     // Attention on the path
     program.arch_call = read_csv::<(Address, OperandIndex)>(&get_path("arch.call.csv"))
         .map(|(x, y)| (x, y))
-        .collect_vec();
+        .collect();
 
     // .input arch_cmp_operation(filename="arch.cmp_operation.csv")
     program.arch_cmp_operation = read_csv::<(String,)>(&get_path("arch.cmp_operation.csv"))
-        .map(|(x,)| (x,))
-        .collect_vec();
+        .map(|(x,)| (leak(x),))
+        .collect();
 
 
     // .input arch_cmp_zero_operation(filename="arch.cmp_zero_operation.csv")
     program.arch_cmp_zero_operation = read_csv::<(String,)>(&get_path("arch.cmp_zero_operation.csv"))
-        .map(|(x,)| (x,))
-        .collect_vec();
+        .map(|(x,)| (leak(x),))
+        .collect();
 
     // arch_cmp_zero_operation("")<--
     //     false.
     // Todo
 
     // .input arch_conditional(filename="arch.conditional.csv")
-    program.arch_conditional = read_csv::<(Address, ConditionCode)>(&get_path("arch.conditional.csv"))
-        .map(|(x, y)| (x, y))
-        .collect_vec();
+    program.arch_conditional = read_csv::<(Address, String)>(&get_path("arch.conditional.csv"))
+        .map(|(x, y)| (x, leak(y)))
+        .collect();
 
     // .input arch_condition_flags_reg(filename="arch.condition_flags_reg.csv")
-    program.arch_condition_flags_reg = read_csv::<(Register,)>(&get_path("arch.condition_flags_reg.csv"))
-        .map(|(x,)| (x,))
-        .collect_vec();
+    program.arch_condition_flags_reg = read_csv::<(String,)>(&get_path("arch.condition_flags_reg.csv"))
+        .map(|(x,)| (leak(x),))
+        .collect();
 
     // .input arch_extend_load(filename="arch.extend_load.csv")
     program.arch_extend_load = read_csv::<(Address, u64, u64)>(&get_path("arch.extend_load.csv"))
         .map(|(x, y, z)| (x, y, z))
-        .collect_vec();
+        .collect();
 
     // .input arch_extend_reg(filename="arch.extend_reg.csv")
-    program.arch_extend_reg = read_csv::<(Address, Register, u64, u64)>(&get_path("arch.extend_reg.csv"))
-        .map(|(x, y, z, xx)| (x, y, z, xx))
-        .collect_vec();
+    program.arch_extend_reg = read_csv::<(Address, String, u64, u64)>(&get_path("arch.extend_reg.csv"))
+        .map(|(x, y, z, xx)| (x, leak(y), z, xx))
+        .collect();
 
     // .input arch_jump(filename="arch.jump.csv")
     program.arch_jump = read_csv::<(Address,)>(&get_path("arch.jump.csv"))
         .map(|(x,)| (x,))
-        .collect_vec();
+        .collect();
 
     // .input arch_memory_access(filename="arch.memory_access.csv")
-    program.arch_memory_access = read_csv::<(AccessMode, Address, OperandIndex, OperandIndex, Register, RegNullable, RegNullable, i64, i64)>(&get_path("arch.memory_access.csv"))
-        .map(|(a, b, c, d, e, f, g, h, i)| (a, b, c, d, e, f, g, h, i))
-        .collect_vec();
+    program.arch_memory_access = read_csv::<(String, Address, OperandIndex, OperandIndex, String, String, String, i64, i64)>(&get_path("arch.memory_access.csv"))
+        .map(|(a, b, c, d, e, f, g, h, i)| (leak(a), b, c, d, leak(e), leak(f), leak(g), h, i))
+        .collect();
 
     // .input arch_move_reg_imm(filename="arch.move_reg_imm.csv")
-    program.arch_move_reg_imm = read_csv::<(Address, Register, i64, OperandIndex)>(&get_path("arch.move_reg_imm.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.arch_move_reg_imm = read_csv::<(Address, String, i64, OperandIndex)>(&get_path("arch.move_reg_imm.csv"))
+        .map(|(a, b, c, d)| (a, leak(b), c, d))
+        .collect();
 
     // .input arch_move_reg_reg(filename="arch.move_reg_reg.csv")
-    program.arch_move_reg_reg = read_csv::<(Address, Register, Register)>(&get_path("arch.move_reg_reg.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.arch_move_reg_reg = read_csv::<(Address, String, String)>(&get_path("arch.move_reg_reg.csv"))
+        .map(|(a, b, c)| (a, leak(b), leak(c)))
+        .collect();
 
 
     // arch_pc_relative_addr(0,"",0)<-- false.
     // Todo
 
     // .input arch_reg_arithmetic_operation(filename="arch.reg_arithmetic_operation.csv")
-    program.arch_reg_arithmetic_operation = read_csv::<(Address, Register, Register, i64, i64)>(&get_path("arch.reg_arithmetic_operation.csv"))
-        .map(|(a, b, c, d, e)| (a, b, c, d, e))
-        .collect_vec();
+    program.arch_reg_arithmetic_operation = read_csv::<(Address, String, String, i64, i64)>(&get_path("arch.reg_arithmetic_operation.csv"))
+        .map(|(a, b, c, d, e)| (a, leak(b), leak(c), d, e))
+        .collect();
 
     // .input arch_reg_reg_arithmetic_operation(filename="arch.reg_reg_arithmetic_operation.csv")
-    program.arch_reg_reg_arithmetic_operation = read_csv::<(Address, Register, Register, Register, i64, i64)>(&get_path("arch.reg_reg_arithmetic_operation.csv"))
-        .map(|(a, b, c, d, e, f)| (a, b, c, d, e, f))
-        .collect_vec();
+    program.arch_reg_reg_arithmetic_operation = read_csv::<(Address, String, String, String, i64, i64)>(&get_path("arch.reg_reg_arithmetic_operation.csv"))
+        .map(|(a, b, c, d, e, f)| (a, leak(b), leak(c), leak(d), e, f))
+        .collect();
 
     // .input arch_register_size_bytes(filename="arch.register_size_bytes.csv")
-    program.arch_register_size_bytes = read_csv::<(InputReg, u64)>(&get_path("arch.register_size_bytes.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.arch_register_size_bytes = read_csv::<(String, u64)>(&get_path("arch.register_size_bytes.csv"))
+        .map(|(a, b)| (leak(a), b))
+        .collect();
 
     // .input arch_return_reg(filename="arch.return_reg.csv")
-    program.arch_return_reg = read_csv::<(Register,)>(&get_path("arch.return_reg.csv"))
-        .map(|(a,)| (a,))
-        .collect_vec();
+    program.arch_return_reg = read_csv::<(String,)>(&get_path("arch.return_reg.csv"))
+        .map(|(a,)| (leak(a),))
+        .collect();
 
 
     // .input arch_stack_pointer(filename="arch.stack_pointer.csv")
-    program.arch_stack_pointer = read_csv::<(Register,)>(&get_path("arch.stack_pointer.csv"))
-        .map(|(a,)| (a,))
-        .collect_vec();
+    program.arch_stack_pointer = read_csv::<(String,)>(&get_path("arch.stack_pointer.csv"))
+        .map(|(a,)| (leak(a),))
+        .collect();
 
     // .input arch_store_immediate(filename="arch.store_immediate.csv")
-    program.arch_store_immediate = read_csv::<(Address, OperandIndex, OperandIndex, i64, RegNullable, RegNullable, i64, i64)>(&get_path("arch.store_immediate.csv"))
-        .map(|(a, b, c, d, e, f, g, h)| (a, b, c, d, e, f, g, h))
-        .collect_vec();
+    program.arch_store_immediate = read_csv::<(Address, OperandIndex, OperandIndex, i64, String, String, i64, i64)>(&get_path("arch.store_immediate.csv"))
+        .map(|(a, b, c, d, e, f, g, h)| (a, b, c, d, leak(e), leak(f), g, h))
+        .collect();
 
     // arch_store_immediate(0,0,0,0,"NONE","NONE",0,0)<-- false.
     // Todo
@@ -1607,323 +1586,325 @@ fn main() {
     // .input base_address
     program.base_address = read_csv::<(Address,)>(&get_path("base_address.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
 
     // .input base_relative_operation
     program.base_relative_operation = read_csv::<(Address, Address)>(&get_path("base_relative_operation.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     // .input binary_format
     program.binary_format = read_csv::<(String,)>(&get_path("binary_format.csv"))
-        .map(|(a,)| (a,))
-        .collect_vec();
+        .map(|(a,)| (leak(a),))
+        .collect();
 
     // .input block
     program.block = read_csv::<(Address,)>(&get_path("block.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
 
     program.block_last_instruction = read_csv::<(Address, Address)>(&get_path("block_last_instruction.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.block_instruction_next = read_csv::<(Address, Address, Address)>(&get_path("block_instruction_next.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
-    program.call_tls_get_addr = read_csv::<(Address, Register)>(&get_path("call_tls_get_addr.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.call_tls_get_addr = read_csv::<(Address, String)>(&get_path("call_tls_get_addr.csv"))
+        .map(|(a, b)| (a, leak(b)))
+        .collect();
 
-    program.cmp_immediate_to_reg = read_csv::<(Address, Register, OperandIndex, i64)>(&get_path("cmp_immediate_to_reg.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.cmp_immediate_to_reg = read_csv::<(Address, String, OperandIndex, i64)>(&get_path("cmp_immediate_to_reg.csv"))
+        .map(|(a, b, c, d)| (a, leak(b), c, d))
+        .collect();
 
-    program.cmp_reg_to_reg = read_csv::<(Address, Register, Register)>(&get_path("cmp_reg_to_reg.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.cmp_reg_to_reg = read_csv::<(Address, String, String)>(&get_path("cmp_reg_to_reg.csv"))
+        .map(|(a, b, c)| (a, leak(b), leak(c)))
+        .collect();
 
     program.code_in_block = read_csv::<(Address, Address)>(&get_path("code_in_block.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.conditional_jump = read_csv::<(Address,)>(&get_path("conditional_jump.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
 
-    program.data_access = read_csv::<(Address, OperandIndex, RegNullable, RegNullable, RegNullable, i64, i64, u64)>(&get_path("data_access.csv"))
-        .map(|(a, b, c, d, e, f, g, h)| (a, b, c, d, e, f, g, h))
-        .collect_vec();
+    program.data_access = read_csv::<(Address, OperandIndex, String, String, String, i64, i64, u64)>(&get_path("data_access.csv"))
+        .map(|(a, b, c, d, e, f, g, h)| (a, b, leak(c), leak(d), leak(e), f, g, h))
+        .collect();
 
     program.data_segment = read_csv::<(Address, Address)>(&get_path("data_segment.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.defined_symbol = read_csv::<(Address, u64, String, String, String, u64, String, u64, String)>(&get_path("defined_symbol.csv"))
-        .map(|(a, b, c, d, e, f, g, h, i)| (a, b, c, d, e, f, g, h, i))
-        .collect_vec();
+        .map(|(a, b, c, d, e, f, g, h, i)| (a, b, leak(c), leak(d), leak(e), f, leak(g), h, leak(i)))
+        .collect();
 
     program.direct_call = read_csv::<(Address, Address)>(&get_path("direct_call.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.direct_jump = read_csv::<(Address, Address)>(&get_path("direct_jump.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.got_reference_pointer = read_csv::<(Address,)>(&get_path("got_reference_pointer.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
 
     program.got_section = read_csv::<(String,)>(&get_path("got_section.csv"))
-        .map(|(a,)| (a,))
-        .collect_vec();
+        .map(|(a,)| (leak(a),))
+        .collect();
 
     program.instruction = read_csv::<(Address, u64, String, String, OperandCode, OperandCode, OperandCode, OperandCode, u64, u64)>(&get_path("instruction.csv"))
-        .map(|(a, b, c, d, e, f, g, h, i, j)| (a, b, c, d, e, f, g, h, i, j))
-        .collect_vec();
+        .map(|(a, b, c, d, e, f, g, h, i, j)| (a, b, leak(c), leak(d), e, f, g, h, i, j))
+        .collect();
 
     program.instruction_displacement_offset = read_csv::<(Address, OperandIndex, u64, u64)>(&get_path("instruction_displacement_offset.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+        .collect();
 
     program.instruction_get_dest_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_dest_op.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
     program.instruction_get_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_op.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
     program.instruction_get_src_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_src_op.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
     program.instruction_has_relocation = read_csv::<(Address, Address)>(&get_path("instruction_has_relocation.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.inter_procedural_edge = read_csv::<(Address, Address)>(&get_path("inter_procedural_edge.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.is_padding = read_csv::<(Address,)>(&get_path("is_padding.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
 
     program.is_xor_reset = read_csv::<(Address,)>(&get_path("is_xor_reset.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
 
-    program.limit_reg_op = read_csv::<(Address, Register, Register, i64)>(&get_path("limit_reg_op.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.limit_reg_op = read_csv::<(Address, String, String, i64)>(&get_path("limit_reg_op.csv"))
+        .map(|(a, b, c, d)| (a, leak(b), leak(c), d))
+        .collect();
 
-    program.limit_type_map = read_csv::<(ConditionCode, LimitType, LimitType, i64, i64)>(&get_path("limit_type_map.csv"))
-        .map(|(a, b, c, d, e)| (a, b, c, d, e))
-        .collect_vec();
+    program.limit_type_map = read_csv::<(String, String, String, i64, i64)>(&get_path("limit_type_map.csv"))
+        .map(|(a, b, c, d, e)| (leak(a), leak(b), leak(c), d, e))
+        .collect();
 
     program.loaded_section = read_csv::<(Address, Address, String)>(&get_path("loaded_section.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .map(|(a, b, c)| (a, b, leak(c)))
+        .collect();
 
     program.lsda_callsite_addresses = read_csv::<(Address, Address, Address)>(&get_path("lsda_callsite_addresses.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
     program.may_fallthrough = read_csv::<(Address, Address)>(&get_path("may_fallthrough.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.next = read_csv::<(Address, Address)>(&get_path("next.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.no_return_call_propagated = read_csv::<(Address,)>(&get_path("no_return_call_propagated.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
     
     program.no_value_reg_limit = read_csv::<(Address,)>(&get_path("no_value_reg_limit.csv"))
     .map(|(a,)| (a,))
-    .collect_vec();
+    .collect();
 
     program.op_immediate = read_csv::<(OperandCode, i64, u64)>(&get_path("op_immediate.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
-    program.op_immediate_and_reg = read_csv::<(Address, String, Register, OperandIndex, i64)>(&get_path("op_immediate_and_reg.csv"))
-        .map(|(a, b, c, d, e)| (a, b, c, d, e))
-        .collect_vec();
+    program.op_immediate_and_reg = read_csv::<(Address, String, String, OperandIndex, i64)>(&get_path("op_immediate_and_reg.csv"))
+        .map(|(a, b, c, d, e)| (a, leak(b), leak(c), d, e))
+        .collect();
 
-    program.op_indirect = read_csv::<(OperandCode, InputReg, InputReg, InputReg, i64, i64, u64)>(&get_path("op_indirect.csv"))
-        .map(|(a, b, c, d, e, f, g)| (a, b, c, d, e, f, g))
-        .collect_vec();
+    program.op_indirect = read_csv::<(OperandCode, String, String, String, i64, i64, u64)>(&get_path("op_indirect.csv"))
+        .map(|(a, b, c, d, e, f, g)| (a, leak(b), leak(c), leak(d), e, f, g))
+        .collect();
 
-    program.op_indirect_mapped = read_csv::<(OperandCode, RegNullable, RegNullable, RegNullable, i64, i64, u64)>(&get_path("op_indirect_mapped.csv"))
-        .map(|(a, b, c, d, e, f, g)| (a, b, c, d, e, f, g))
-        .collect_vec();
+    program.op_indirect_mapped = read_csv::<(OperandCode, String, String, String, i64, i64, u64)>(&get_path("op_indirect_mapped.csv"))
+        .map(|(a, b, c, d, e, f, g)| (a, leak(b), leak(c), leak(d), e, f, g))
+        .collect();
 
-    program.op_regdirect = read_csv::<(OperandCode, InputReg)>(&get_path("op_regdirect.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.op_regdirect = read_csv::<(OperandCode, String)>(&get_path("op_regdirect.csv"))
+        .map(|(a, b)| (a, leak(b)))
+        .collect();
 
-    program.op_regdirect_contains_reg = read_csv::<(OperandCode, Register)>(&get_path("op_regdirect_contains_reg.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.op_regdirect_contains_reg = read_csv::<(OperandCode, String)>(&get_path("op_regdirect_contains_reg.csv"))
+        .map(|(a, b)| (a, leak(b)))
+        .collect();
 
     program.pc_relative_operand = read_csv::<(Address, OperandIndex, Address)>(&get_path("pc_relative_operand.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
     program.possible_rva_operand = read_csv::<(Address, OperandIndex, Address)>(&get_path("possible_rva_operand.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
-    program.reg_call = read_csv::<(Address, Register)>(&get_path("reg_call.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.reg_call = read_csv::<(Address, String)>(&get_path("reg_call.csv"))
+        .map(|(a, b)| (a, leak(b)))
+        .collect();
 
-    program.reg_def_use_block_last_def = read_csv::<(Address, Address, Register)>(&get_path("reg_def_use.block_last_def.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.reg_def_use_block_last_def = read_csv::<(Address, Address, String)>(&get_path("reg_def_use.block_last_def.csv"))
+        .map(|(a, b, c)| (a, b, leak(c)))
+        .collect();
 
-    program.reg_def_use_def = read_csv::<(Address, Register)>(&get_path("reg_def_use.def.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.reg_def_use_def = read_csv::<(Address, String)>(&get_path("reg_def_use.def.csv"))
+        .map(|(a, b)| (a, leak(b)))
+        .collect();
 
-    program.reg_def_use_defined_in_block = read_csv::<(Address, Register)>(&get_path("reg_def_use.defined_in_block.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.reg_def_use_defined_in_block = read_csv::<(Address, String)>(&get_path("reg_def_use.defined_in_block.csv"))
+        .map(|(a, b)| (a, leak(b)))
+        .collect();
 
-    program.reg_def_use_flow_def = read_csv::<(Address, Register, Address, i64)>(&get_path("reg_def_use.flow_def.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.reg_def_use_flow_def = read_csv::<(Address, String, Address, i64)>(&get_path("reg_def_use.flow_def.csv"))
+        .map(|(a, b, c, d)| (a, leak(b), c, d))
+        .collect();
 
-    program.reg_def_use_live_var_def = read_csv::<(Address, Register, Register, Address)>(&get_path("reg_def_use.live_var_def.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.reg_def_use_live_var_def = read_csv::<(Address, String, String, Address)>(&get_path("reg_def_use.live_var_def.csv"))
+        .map(|(a, b, c, d)| (a, leak(b), leak(c), d))
+        .collect();
 
-    program.reg_def_use_ref_in_block = read_csv::<(Address, Register)>(&get_path("reg_def_use.ref_in_block.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.reg_def_use_ref_in_block = read_csv::<(Address, String)>(&get_path("reg_def_use.ref_in_block.csv"))
+        .map(|(a, b)| (a, leak(b)))
+        .collect();
     
     program.reg_def_use_return_block_end = read_csv::<(Address, Address, Address, Address)>(&get_path("reg_def_use.return_block_end.csv"))
     .map(|(a, b, c, d)| (a, b, c, d))
-    .collect_vec();
+    .collect();
 
-    program.reg_def_use_used = read_csv::<(Address, Register, OperandIndex)>(&get_path("reg_def_use.used.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.reg_def_use_used = read_csv::<(Address, String, OperandIndex)>(&get_path("reg_def_use.used.csv"))
+        .map(|(a, b, c)| (a, leak(b), c))
+        .collect();
 
-    program.reg_def_use_used_in_block = read_csv::<(Address, Address, Register, OperandIndex)>(&get_path("reg_def_use.used_in_block.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.reg_def_use_used_in_block = read_csv::<(Address, Address, String, OperandIndex)>(&get_path("reg_def_use.used_in_block.csv"))
+        .map(|(a, b, c, d)| (a, b, leak(c), d))
+        .collect();
 
-    program.reg_jump = read_csv::<(Address, Register)>(&get_path("reg_jump.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.reg_jump = read_csv::<(Address, String)>(&get_path("reg_jump.csv"))
+        .map(|(a, b)| (a, leak(b)))
+        .collect();
 
-    program.reg_map = read_csv::<(InputReg, Register)>(&get_path("reg_map.csv"))
-        .map(|(a, b)| (a, b))
-        .collect_vec();
+    program.reg_map = read_csv::<(String, String)>(&get_path("reg_map.csv"))
+        .map(|(a, b)| (leak(a), leak(b)))
+        .collect();
 
-    program.reg_used_for = read_csv::<(Address, Register, String)>(&get_path("reg_used_for.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.reg_used_for = read_csv::<(Address, String, String)>(&get_path("reg_used_for.csv"))
+        .map(|(a, b, c)| (a, leak(b), leak(c)))
+        .collect();
 
-    program.register_access = read_csv::<(Address, InputReg, AccessMode)>(&get_path("register_access.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.register_access = read_csv::<(Address, String, String)>(&get_path("register_access.csv"))
+        .map(|(a, b, c)| (a, leak(b), leak(c)))
+        .collect();
 
     program.relative_address = read_csv::<(Address, u64, Address, Address, Address, String)>(&get_path("relative_address.csv"))
-        .map(|(a, b, c, d, e, f)| (a, b, c, d, e, f))
-        .collect_vec();
+        .map(|(a, b, c, d, e, f)| (a, b, c, d, e, leak(f)))
+        .collect();
 
     program.relative_address_start = read_csv::<(Address, u64, Address, Address, String)>(&get_path("relative_address_start.csv"))
-        .map(|(a, b, c, d, e)| (a, b, c, d, e))
-        .collect_vec();
+        .map(|(a, b, c, d, e)| (a, b, c, d, leak(e)))
+        .collect();
 
     program.relocation = read_csv::<(Address, String, String, i64, u64, String, String)>(&get_path("relocation.csv"))
-        .map(|(a, b, c, d, e, f, g)| (a, b, c, d, e, f, g))
-        .collect_vec();
+        .map(|(a, b, c, d, e, f, g)| (a, leak(b), leak(c), d, e, leak(f), leak(g)))
+        .collect();
 
     program.relocation_adjustment_total = read_csv::<(Address, i64)>(&get_path("relocation_adjustment_total.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.simple_data_access_pattern = read_csv::<(Address, u64, u64, Address)>(&get_path("simple_data_access_pattern.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+        .collect();
 
-    program.stack_base_reg_move = read_csv::<(Address, Address, Register, Register)>(&get_path("stack_base_reg_move.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.stack_base_reg_move = read_csv::<(Address, Address, String, String)>(&get_path("stack_base_reg_move.csv"))
+        .map(|(a, b, c, d)| (a, b, leak(c), leak(d)))
+        .collect();
 
-    program.stack_def_use_block_last_def1 = read_csv::<(Address, Address, Register, Number)>(&get_path("stack_def_use_block_last_def.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.stack_def_use_block_last_def1 = read_csv::<(Address, Address, String, Number)>(&get_path("stack_def_use_block_last_def.csv"))
+        .map(|(a, b, c, d)| (a, b, leak(c), d))
+        .collect();
 
-    program.stack_def_use_def1 = read_csv::<(Address, Register, Number)>(&get_path("stack_def_use_def.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.stack_def_use_def1 = read_csv::<(Address, String, Number)>(&get_path("stack_def_use_def.csv"))
+        .map(|(a, b, c)| (a, leak(b), c))
+        .collect();
 
-    program.stack_def_use_defined_in_block1 = read_csv::<(Address, Register, Number)>(&get_path("stack_def_use_defined_in_block.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.stack_def_use_defined_in_block1 = read_csv::<(Address, String, Number)>(&get_path("stack_def_use_defined_in_block.csv"))
+        .map(|(a, b, c)| (a, leak(b), c))
+        .collect();
 
-    program.stack_def_use_live_var_def1 = read_csv::<(Address, Register, Number, Register, Number, Address)>(&get_path("stack_def_use_live_var_def.csv"))
-        .map(|(a, b, c, d, e, f)| (a, b, c, d, e, f))
-        .collect_vec();
+    program.stack_def_use_live_var_def1 = read_csv::<(Address, String, Number, String, Number, Address)>(&get_path("stack_def_use_live_var_def.csv"))
+        .map(|(a, b, c, d, e, f)| (a, leak(b), c, leak(d), e, f))
+        .collect();
 
     program.stack_def_use_moves_limit = read_csv::<(u64,)>(&get_path("stack_def_use_moves_limit.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
 
-    program.stack_def_use_ref_in_block1 = read_csv::<(Address, Register, Number)>(&get_path("stack_def_use_ref_in_block.csv"))
-        .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+    program.stack_def_use_ref_in_block1 = read_csv::<(Address, String, Number)>(&get_path("stack_def_use_ref_in_block.csv"))
+        .map(|(a, b, c)| (a, leak(b), c))
+        .collect();
 
-    program.stack_def_use_used1 = read_csv::<(Address, Register, Number, OperandIndex)>(&get_path("stack_def_use_used.csv"))
-        .map(|(a, b, c, d)| (a, b, c, d))
-        .collect_vec();
+    program.stack_def_use_used1 = read_csv::<(Address, String, Number, OperandIndex)>(&get_path("stack_def_use_used.csv"))
+        .map(|(a, b, c, d)| (a, leak(b), c, d))
+        .collect();
 
-    program.stack_def_use_used_in_block1 = read_csv::<(Address, Address, Register, Number, OperandIndex)>(&get_path("stack_def_use_used_in_block.csv"))
-        .map(|(a, b, c, d, e)| (a, b, c, d, e))
-        .collect_vec();
+    program.stack_def_use_used_in_block1 = read_csv::<(Address, Address, String, Number, OperandIndex)>(&get_path("stack_def_use_used_in_block.csv"))
+        .map(|(a, b, c, d, e)| (a, b, leak(c), d, e))
+        .collect();
 
     program.step_limit = read_csv::<(u64,)>(&get_path("step_limit.csv"))
         .map(|(a,)| (a,))
-        .collect_vec();
+        .collect();
 
     program.symbol = read_csv::<(Address, u64, String, String, String, u64, String, u64, String)>(&get_path("symbol.csv"))
-        .map(|(a, b, c, d, e, f, g, h, i)| (a, b, c, d, e, f, g, h, i))
-        .collect_vec();
+        .map(|(a, b, c, d, e, f, g, h, i)| (a, b, leak(c), leak(d), leak(e), f, leak(g), h, leak(i)))
+        .collect();
 
     program.symbolic_expr_from_relocation = read_csv::<(Address, u64, String, i64, Address)>(&get_path("symbolic_expr_from_relocation.csv"))
-        .map(|(a, b, c, d, e)| (a, b, c, d, e))
-        .collect_vec();
+        .map(|(a, b, c, d, e)| (a, b, leak(c), d, e))
+        .collect();
 
     program.take_address = read_csv::<(Address, Address)>(&get_path("take_address.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.tls_descriptor = read_csv::<(Address, u64)>(&get_path("tls_descriptor.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.tls_index = read_csv::<(Address, u64)>(&get_path("tls_index.csv"))
         .map(|(a, b)| (a, b))
-        .collect_vec();
+        .collect();
 
     program.tls_segment = read_csv::<(Address, Address, u64)>(&get_path("tls_segment.csv"))
         .map(|(a, b, c)| (a, b, c))
-        .collect_vec();
+        .collect();
 
-    program.track_register = read_csv::<(Register,)>(&get_path("track_register.csv"))
-        .map(|(a,)| (a,))
-        .collect_vec();
+    program.track_register = read_csv::<(String,)>(&get_path("track_register.csv"))
+        .map(|(a,)| (leak(a),))
+        .collect();
 
+
+    println!("Finished reading files!");
     program.run();
 
     println!("{:?}", program.scc_times_summary());
