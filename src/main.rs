@@ -9,16 +9,27 @@ fn read_csv<T>(path: &str) -> impl Iterator<Item = T>
 where
    for<'de> T: serde::de::Deserialize<'de>,
 {
+    // read csv file replace all hex values with decimal
+
     println!("Reading CSV file: {}", path);
-   csv::ReaderBuilder::new()
-      .delimiter(b'\t')
-      .has_headers(false)
-      .double_quote(false)
-      .quoting(false)
-      .from_path(path)
-      .unwrap()
-      .into_deserialize()
-      .map(|x| x.unwrap())
+    // check if file exists
+    let path_replace = if !std::path::Path::new(path).exists() {
+        // replace the .csv with .facts
+        path.replace(".csv", ".facts")
+    } else {
+        path.to_string()
+    };
+    let path = path_replace.as_str();
+        
+    csv::ReaderBuilder::new()
+        .delimiter(b'\t')
+        .has_headers(false)
+        .double_quote(false)
+        .quoting(false)
+        .from_path(path)
+        .unwrap()
+        .into_deserialize()
+        .map(|x| x.unwrap())
 }
 
 
@@ -235,7 +246,7 @@ ascent! {
     // .decl reg_def_use_block_last_def(EA:address,EA_def:address,Var:register)
     // .decl reg_def_use_def(EA:address,Var:register)
     // // .decl reg_def_use_def_used(EA_def:address,Var:register,EA_used:address,Index_used:operand_index)
-    // // .input reg_def_use_def_used(filename="reg_def_use.def_used.facts")
+    // // .input reg_def_use_def_used(filename="reg_def_use.def_used.csv")
     // .decl reg_def_use_defined_in_block(Block:address,Var:register)
     // .decl reg_def_use_flow_def(EA:address,Var:register,EA_next:address,Value:number)
     // .decl reg_def_use_live_var_def(Block:address,VarIdentity:register,LiveVar:register,EA_def:address)
@@ -1520,38 +1531,38 @@ fn main() {
     let binary_path = std::env::args().nth(2).unwrap();
     // run command using rust's std::process::Command
     // ddisasm -j 12 --debug-dir <db_dir> <binary_path>
-    let _output = Command::new("ddisasm")
-        .arg("-j")
-        .arg("12")
-        .arg("--debug-dir")
-        .arg(&db_dir)
-        .arg(&binary_path)
-        .output()
-        .expect("failed to execute process");
+    // let _output = Command::new("ddisasm")
+    //     .arg("-j")
+    //     .arg("12")
+    //     .arg("--debug-dir")
+    //     .arg(&db_dir)
+    //     .arg(&binary_path)
+    //     .output()
+    //     .expect("failed to execute process");
 
     let path = format!("{}/disassembly/", db_dir);
     let get_path = |x: &str| format!("{path}{x}");
 
-    program.adjusts_stack_in_block = read_csv::<(Address, Address, Register, i64)>(&get_path("adjusts_stack_in_block.facts"))
+    program.adjusts_stack_in_block = read_csv::<(Address, Address, Register, i64)>(&get_path("adjusts_stack_in_block.csv"))
         .map(|(x, y, z, xx)| (x, y, z, xx))
         .collect_vec();
-    program.after_end = read_csv::<(Address, Address)>(&get_path("after_end.facts"))
+    program.after_end = read_csv::<(Address, Address)>(&get_path("after_end.csv"))
         .map(|(x, y)| (x, y))
         .collect_vec();
 
     // Attention on the path
-    program.arch_call = read_csv::<(Address, OperandIndex)>(&get_path("arch.call.facts"))
+    program.arch_call = read_csv::<(Address, OperandIndex)>(&get_path("arch.call.csv"))
         .map(|(x, y)| (x, y))
         .collect_vec();
 
-    // .input arch_cmp_operation(filename="arch.cmp_operation.facts")
-    program.arch_cmp_operation = read_csv::<(String,)>(&get_path("arch.cmp_operation.facts"))
+    // .input arch_cmp_operation(filename="arch.cmp_operation.csv")
+    program.arch_cmp_operation = read_csv::<(String,)>(&get_path("arch.cmp_operation.csv"))
         .map(|(x,)| (x,))
         .collect_vec();
 
 
-    // .input arch_cmp_zero_operation(filename="arch.cmp_zero_operation.facts")
-    program.arch_cmp_zero_operation = read_csv::<(String,)>(&get_path("arch.cmp_zero_operation.facts"))
+    // .input arch_cmp_zero_operation(filename="arch.cmp_zero_operation.csv")
+    program.arch_cmp_zero_operation = read_csv::<(String,)>(&get_path("arch.cmp_zero_operation.csv"))
         .map(|(x,)| (x,))
         .collect_vec();
 
@@ -1559,43 +1570,43 @@ fn main() {
     //     false.
     // Todo
 
-    // .input arch_conditional(filename="arch.conditional.facts")
-    program.arch_conditional = read_csv::<(Address, ConditionCode)>(&get_path("arch.conditional.facts"))
+    // .input arch_conditional(filename="arch.conditional.csv")
+    program.arch_conditional = read_csv::<(Address, ConditionCode)>(&get_path("arch.conditional.csv"))
         .map(|(x, y)| (x, y))
         .collect_vec();
 
-    // .input arch_condition_flags_reg(filename="arch.condition_flags_reg.facts")
-    program.arch_condition_flags_reg = read_csv::<(Register,)>(&get_path("arch.condition_flags_reg.facts"))
+    // .input arch_condition_flags_reg(filename="arch.condition_flags_reg.csv")
+    program.arch_condition_flags_reg = read_csv::<(Register,)>(&get_path("arch.condition_flags_reg.csv"))
         .map(|(x,)| (x,))
         .collect_vec();
 
-    // .input arch_extend_load(filename="arch.extend_load.facts")
-    program.arch_extend_load = read_csv::<(Address, u64, u64)>(&get_path("arch.extend_load.facts"))
+    // .input arch_extend_load(filename="arch.extend_load.csv")
+    program.arch_extend_load = read_csv::<(Address, u64, u64)>(&get_path("arch.extend_load.csv"))
         .map(|(x, y, z)| (x, y, z))
         .collect_vec();
 
-    // .input arch_extend_reg(filename="arch.extend_reg.facts")
-    program.arch_extend_reg = read_csv::<(Address, Register, u64, u64)>(&get_path("arch.extend_reg.facts"))
+    // .input arch_extend_reg(filename="arch.extend_reg.csv")
+    program.arch_extend_reg = read_csv::<(Address, Register, u64, u64)>(&get_path("arch.extend_reg.csv"))
         .map(|(x, y, z, xx)| (x, y, z, xx))
         .collect_vec();
 
-    // .input arch_jump(filename="arch.jump.facts")
-    program.arch_jump = read_csv::<(Address,)>(&get_path("arch.jump.facts"))
+    // .input arch_jump(filename="arch.jump.csv")
+    program.arch_jump = read_csv::<(Address,)>(&get_path("arch.jump.csv"))
         .map(|(x,)| (x,))
         .collect_vec();
 
-    // .input arch_memory_access(filename="arch.memory_access.facts")
-    program.arch_memory_access = read_csv::<(AccessMode, Address, OperandIndex, OperandIndex, Register, RegNullable, RegNullable, i64, i64)>(&get_path("arch.memory_access.facts"))
+    // .input arch_memory_access(filename="arch.memory_access.csv")
+    program.arch_memory_access = read_csv::<(AccessMode, Address, OperandIndex, OperandIndex, Register, RegNullable, RegNullable, i64, i64)>(&get_path("arch.memory_access.csv"))
         .map(|(a, b, c, d, e, f, g, h, i)| (a, b, c, d, e, f, g, h, i))
         .collect_vec();
 
-    // .input arch_move_reg_imm(filename="arch.move_reg_imm.facts")
-    program.arch_move_reg_imm = read_csv::<(Address, Register, i64, OperandIndex)>(&get_path("arch.move_reg_imm.facts"))
+    // .input arch_move_reg_imm(filename="arch.move_reg_imm.csv")
+    program.arch_move_reg_imm = read_csv::<(Address, Register, i64, OperandIndex)>(&get_path("arch.move_reg_imm.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    // .input arch_move_reg_reg(filename="arch.move_reg_reg.facts")
-    program.arch_move_reg_reg = read_csv::<(Address, Register, Register)>(&get_path("arch.move_reg_reg.facts"))
+    // .input arch_move_reg_reg(filename="arch.move_reg_reg.csv")
+    program.arch_move_reg_reg = read_csv::<(Address, Register, Register)>(&get_path("arch.move_reg_reg.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
@@ -1603,34 +1614,34 @@ fn main() {
     // arch_pc_relative_addr(0,"",0)<-- false.
     // Todo
 
-    // .input arch_reg_arithmetic_operation(filename="arch.reg_arithmetic_operation.facts")
-    program.arch_reg_arithmetic_operation = read_csv::<(Address, Register, Register, i64, i64)>(&get_path("arch.reg_arithmetic_operation.facts"))
+    // .input arch_reg_arithmetic_operation(filename="arch.reg_arithmetic_operation.csv")
+    program.arch_reg_arithmetic_operation = read_csv::<(Address, Register, Register, i64, i64)>(&get_path("arch.reg_arithmetic_operation.csv"))
         .map(|(a, b, c, d, e)| (a, b, c, d, e))
         .collect_vec();
 
-    // .input arch_reg_reg_arithmetic_operation(filename="arch.reg_reg_arithmetic_operation.facts")
-    program.arch_reg_reg_arithmetic_operation = read_csv::<(Address, Register, Register, Register, i64, i64)>(&get_path("arch.reg_reg_arithmetic_operation.facts"))
+    // .input arch_reg_reg_arithmetic_operation(filename="arch.reg_reg_arithmetic_operation.csv")
+    program.arch_reg_reg_arithmetic_operation = read_csv::<(Address, Register, Register, Register, i64, i64)>(&get_path("arch.reg_reg_arithmetic_operation.csv"))
         .map(|(a, b, c, d, e, f)| (a, b, c, d, e, f))
         .collect_vec();
 
-    // .input arch_register_size_bytes(filename="arch.register_size_bytes.facts")
-    program.arch_register_size_bytes = read_csv::<(InputReg, u64)>(&get_path("arch.register_size_bytes.facts"))
+    // .input arch_register_size_bytes(filename="arch.register_size_bytes.csv")
+    program.arch_register_size_bytes = read_csv::<(InputReg, u64)>(&get_path("arch.register_size_bytes.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    // .input arch_return_reg(filename="arch.return_reg.facts")
-    program.arch_return_reg = read_csv::<(Register,)>(&get_path("arch.return_reg.facts"))
+    // .input arch_return_reg(filename="arch.return_reg.csv")
+    program.arch_return_reg = read_csv::<(Register,)>(&get_path("arch.return_reg.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
 
-    // .input arch_stack_pointer(filename="arch.stack_pointer.facts")
-    program.arch_stack_pointer = read_csv::<(Register,)>(&get_path("arch.stack_pointer.facts"))
+    // .input arch_stack_pointer(filename="arch.stack_pointer.csv")
+    program.arch_stack_pointer = read_csv::<(Register,)>(&get_path("arch.stack_pointer.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    // .input arch_store_immediate(filename="arch.store_immediate.facts")
-    program.arch_store_immediate = read_csv::<(Address, OperandIndex, OperandIndex, i64, RegNullable, RegNullable, i64, i64)>(&get_path("arch.store_immediate.facts"))
+    // .input arch_store_immediate(filename="arch.store_immediate.csv")
+    program.arch_store_immediate = read_csv::<(Address, OperandIndex, OperandIndex, i64, RegNullable, RegNullable, i64, i64)>(&get_path("arch.store_immediate.csv"))
         .map(|(a, b, c, d, e, f, g, h)| (a, b, c, d, e, f, g, h))
         .collect_vec();
 
@@ -1638,322 +1649,322 @@ fn main() {
     // Todo
 
     // .input base_address
-    program.base_address = read_csv::<(Address,)>(&get_path("base_address.facts"))
+    program.base_address = read_csv::<(Address,)>(&get_path("base_address.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
     // .input base_relative_operation
-    program.base_relative_operation = read_csv::<(Address, Address)>(&get_path("base_relative_operation.facts"))
+    program.base_relative_operation = read_csv::<(Address, Address)>(&get_path("base_relative_operation.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
     // .input binary_format
-    program.binary_format = read_csv::<(String,)>(&get_path("binary_format.facts"))
+    program.binary_format = read_csv::<(String,)>(&get_path("binary_format.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
     // .input block
-    program.block = read_csv::<(Address,)>(&get_path("block.facts"))
+    program.block = read_csv::<(Address,)>(&get_path("block.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.block_last_instruction = read_csv::<(Address, Address)>(&get_path("block_last_instruction.facts"))
+    program.block_last_instruction = read_csv::<(Address, Address)>(&get_path("block_last_instruction.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.block_instruction_next = read_csv::<(Address, Address, Address)>(&get_path("block_instruction_next.facts"))
+    program.block_instruction_next = read_csv::<(Address, Address, Address)>(&get_path("block_instruction_next.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.call_tls_get_addr = read_csv::<(Address, Register)>(&get_path("call_tls_get_addr.facts"))
+    program.call_tls_get_addr = read_csv::<(Address, Register)>(&get_path("call_tls_get_addr.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.cmp_immediate_to_reg = read_csv::<(Address, Register, OperandIndex, i64)>(&get_path("cmp_immediate_to_reg.facts"))
+    program.cmp_immediate_to_reg = read_csv::<(Address, Register, OperandIndex, i64)>(&get_path("cmp_immediate_to_reg.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.cmp_reg_to_reg = read_csv::<(Address, Register, Register)>(&get_path("cmp_reg_to_reg.facts"))
+    program.cmp_reg_to_reg = read_csv::<(Address, Register, Register)>(&get_path("cmp_reg_to_reg.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.code_in_block = read_csv::<(Address, Address)>(&get_path("code_in_block.facts"))
+    program.code_in_block = read_csv::<(Address, Address)>(&get_path("code_in_block.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.conditional_jump = read_csv::<(Address,)>(&get_path("conditional_jump.facts"))
+    program.conditional_jump = read_csv::<(Address,)>(&get_path("conditional_jump.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.data_access = read_csv::<(Address, OperandIndex, RegNullable, RegNullable, RegNullable, i64, i64, u64)>(&get_path("data_access.facts"))
+    program.data_access = read_csv::<(Address, OperandIndex, RegNullable, RegNullable, RegNullable, i64, i64, u64)>(&get_path("data_access.csv"))
         .map(|(a, b, c, d, e, f, g, h)| (a, b, c, d, e, f, g, h))
         .collect_vec();
 
-    program.data_segment = read_csv::<(Address, Address)>(&get_path("data_segment.facts"))
+    program.data_segment = read_csv::<(Address, Address)>(&get_path("data_segment.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.defined_symbol = read_csv::<(Address, u64, String, String, String, u64, String, u64, String)>(&get_path("defined_symbol.facts"))
+    program.defined_symbol = read_csv::<(Address, u64, String, String, String, u64, String, u64, String)>(&get_path("defined_symbol.csv"))
         .map(|(a, b, c, d, e, f, g, h, i)| (a, b, c, d, e, f, g, h, i))
         .collect_vec();
 
-    program.direct_call = read_csv::<(Address, Address)>(&get_path("direct_call.facts"))
+    program.direct_call = read_csv::<(Address, Address)>(&get_path("direct_call.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.direct_jump = read_csv::<(Address, Address)>(&get_path("direct_jump.facts"))
+    program.direct_jump = read_csv::<(Address, Address)>(&get_path("direct_jump.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.got_reference_pointer = read_csv::<(Address,)>(&get_path("got_reference_pointer.facts"))
+    program.got_reference_pointer = read_csv::<(Address,)>(&get_path("got_reference_pointer.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.got_section = read_csv::<(String,)>(&get_path("got_section.facts"))
+    program.got_section = read_csv::<(String,)>(&get_path("got_section.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.instruction = read_csv::<(Address, u64, String, String, OperandCode, OperandCode, OperandCode, OperandCode, u64, u64)>(&get_path("instruction.facts"))
+    program.instruction = read_csv::<(Address, u64, String, String, OperandCode, OperandCode, OperandCode, OperandCode, u64, u64)>(&get_path("instruction.csv"))
         .map(|(a, b, c, d, e, f, g, h, i, j)| (a, b, c, d, e, f, g, h, i, j))
         .collect_vec();
 
-    program.instruction_displacement_offset = read_csv::<(Address, OperandIndex, u64, u64)>(&get_path("instruction_displacement_offset.facts"))
+    program.instruction_displacement_offset = read_csv::<(Address, OperandIndex, u64, u64)>(&get_path("instruction_displacement_offset.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.instruction_get_dest_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_dest_op.facts"))
+    program.instruction_get_dest_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_dest_op.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.instruction_get_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_op.facts"))
+    program.instruction_get_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_op.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.instruction_get_src_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_src_op.facts"))
+    program.instruction_get_src_op = read_csv::<(Address, OperandIndex, OperandCode)>(&get_path("instruction_get_src_op.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.instruction_has_relocation = read_csv::<(Address, Address)>(&get_path("instruction_has_relocation.facts"))
+    program.instruction_has_relocation = read_csv::<(Address, Address)>(&get_path("instruction_has_relocation.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.inter_procedural_edge = read_csv::<(Address, Address)>(&get_path("inter_procedural_edge.facts"))
+    program.inter_procedural_edge = read_csv::<(Address, Address)>(&get_path("inter_procedural_edge.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.is_padding = read_csv::<(Address,)>(&get_path("is_padding.facts"))
+    program.is_padding = read_csv::<(Address,)>(&get_path("is_padding.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.is_xor_reset = read_csv::<(Address,)>(&get_path("is_xor_reset.facts"))
+    program.is_xor_reset = read_csv::<(Address,)>(&get_path("is_xor_reset.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.limit_reg_op = read_csv::<(Address, Register, Register, i64)>(&get_path("limit_reg_op.facts"))
+    program.limit_reg_op = read_csv::<(Address, Register, Register, i64)>(&get_path("limit_reg_op.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.limit_type_map = read_csv::<(ConditionCode, LimitType, LimitType, i64, i64)>(&get_path("limit_type_map.facts"))
+    program.limit_type_map = read_csv::<(ConditionCode, LimitType, LimitType, i64, i64)>(&get_path("limit_type_map.csv"))
         .map(|(a, b, c, d, e)| (a, b, c, d, e))
         .collect_vec();
 
-    program.loaded_section = read_csv::<(Address, Address, String)>(&get_path("loaded_section.facts"))
+    program.loaded_section = read_csv::<(Address, Address, String)>(&get_path("loaded_section.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.lsda_callsite_addresses = read_csv::<(Address, Address, Address)>(&get_path("lsda_callsite_addresses.facts"))
+    program.lsda_callsite_addresses = read_csv::<(Address, Address, Address)>(&get_path("lsda_callsite_addresses.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.may_fallthrough = read_csv::<(Address, Address)>(&get_path("may_fallthrough.facts"))
+    program.may_fallthrough = read_csv::<(Address, Address)>(&get_path("may_fallthrough.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.next = read_csv::<(Address, Address)>(&get_path("next.facts"))
+    program.next = read_csv::<(Address, Address)>(&get_path("next.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.no_return_call_propagated = read_csv::<(Address,)>(&get_path("no_return_call_propagated.facts"))
+    program.no_return_call_propagated = read_csv::<(Address,)>(&get_path("no_return_call_propagated.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
     
-    program.no_value_reg_limit = read_csv::<(Address,)>(&get_path("no_value_reg_limit.facts"))
+    program.no_value_reg_limit = read_csv::<(Address,)>(&get_path("no_value_reg_limit.csv"))
     .map(|(a,)| (a,))
     .collect_vec();
 
-    program.op_immediate = read_csv::<(OperandCode, i64, u64)>(&get_path("op_immediate.facts"))
+    program.op_immediate = read_csv::<(OperandCode, i64, u64)>(&get_path("op_immediate.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.op_immediate_and_reg = read_csv::<(Address, String, Register, OperandIndex, i64)>(&get_path("op_immediate_and_reg.facts"))
+    program.op_immediate_and_reg = read_csv::<(Address, String, Register, OperandIndex, i64)>(&get_path("op_immediate_and_reg.csv"))
         .map(|(a, b, c, d, e)| (a, b, c, d, e))
         .collect_vec();
 
-    program.op_indirect = read_csv::<(OperandCode, InputReg, InputReg, InputReg, i64, i64, u64)>(&get_path("op_indirect.facts"))
+    program.op_indirect = read_csv::<(OperandCode, InputReg, InputReg, InputReg, i64, i64, u64)>(&get_path("op_indirect.csv"))
         .map(|(a, b, c, d, e, f, g)| (a, b, c, d, e, f, g))
         .collect_vec();
 
-    program.op_indirect_mapped = read_csv::<(OperandCode, RegNullable, RegNullable, RegNullable, i64, i64, u64)>(&get_path("op_indirect_mapped.facts"))
+    program.op_indirect_mapped = read_csv::<(OperandCode, RegNullable, RegNullable, RegNullable, i64, i64, u64)>(&get_path("op_indirect_mapped.csv"))
         .map(|(a, b, c, d, e, f, g)| (a, b, c, d, e, f, g))
         .collect_vec();
 
-    program.op_regdirect = read_csv::<(OperandCode, InputReg)>(&get_path("op_regdirect.facts"))
+    program.op_regdirect = read_csv::<(OperandCode, InputReg)>(&get_path("op_regdirect.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.op_regdirect_contains_reg = read_csv::<(OperandCode, Register)>(&get_path("op_regdirect_contains_reg.facts"))
+    program.op_regdirect_contains_reg = read_csv::<(OperandCode, Register)>(&get_path("op_regdirect_contains_reg.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.pc_relative_operand = read_csv::<(Address, OperandIndex, Address)>(&get_path("pc_relative_operand.facts"))
+    program.pc_relative_operand = read_csv::<(Address, OperandIndex, Address)>(&get_path("pc_relative_operand.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.possible_rva_operand = read_csv::<(Address, OperandIndex, Address)>(&get_path("possible_rva_operand.facts"))
+    program.possible_rva_operand = read_csv::<(Address, OperandIndex, Address)>(&get_path("possible_rva_operand.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.reg_call = read_csv::<(Address, Register)>(&get_path("reg_call.facts"))
+    program.reg_call = read_csv::<(Address, Register)>(&get_path("reg_call.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.reg_def_use_block_last_def = read_csv::<(Address, Address, Register)>(&get_path("reg_def_use.block_last_def.facts"))
+    program.reg_def_use_block_last_def = read_csv::<(Address, Address, Register)>(&get_path("reg_def_use.block_last_def.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.reg_def_use_def = read_csv::<(Address, Register)>(&get_path("reg_def_use.def.facts"))
+    program.reg_def_use_def = read_csv::<(Address, Register)>(&get_path("reg_def_use.def.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.reg_def_use_defined_in_block = read_csv::<(Address, Register)>(&get_path("reg_def_use.defined_in_block.facts"))
+    program.reg_def_use_defined_in_block = read_csv::<(Address, Register)>(&get_path("reg_def_use.defined_in_block.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.reg_def_use_flow_def = read_csv::<(Address, Register, Address, i64)>(&get_path("reg_def_use.flow_def.facts"))
+    program.reg_def_use_flow_def = read_csv::<(Address, Register, Address, i64)>(&get_path("reg_def_use.flow_def.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.reg_def_use_live_var_def = read_csv::<(Address, Register, Register, Address)>(&get_path("reg_def_use.live_var_def.facts"))
+    program.reg_def_use_live_var_def = read_csv::<(Address, Register, Register, Address)>(&get_path("reg_def_use.live_var_def.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.reg_def_use_ref_in_block = read_csv::<(Address, Register)>(&get_path("reg_def_use.ref_in_block.facts"))
+    program.reg_def_use_ref_in_block = read_csv::<(Address, Register)>(&get_path("reg_def_use.ref_in_block.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
     
-    program.reg_def_use_return_block_end = read_csv::<(Address, Address, Address, Address)>(&get_path("reg_def_use.return_block_end.facts"))
+    program.reg_def_use_return_block_end = read_csv::<(Address, Address, Address, Address)>(&get_path("reg_def_use.return_block_end.csv"))
     .map(|(a, b, c, d)| (a, b, c, d))
     .collect_vec();
 
-    program.reg_def_use_used = read_csv::<(Address, Register, OperandIndex)>(&get_path("reg_def_use.used.facts"))
+    program.reg_def_use_used = read_csv::<(Address, Register, OperandIndex)>(&get_path("reg_def_use.used.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.reg_def_use_used_in_block = read_csv::<(Address, Address, Register, OperandIndex)>(&get_path("reg_def_use.used_in_block.facts"))
+    program.reg_def_use_used_in_block = read_csv::<(Address, Address, Register, OperandIndex)>(&get_path("reg_def_use.used_in_block.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.reg_jump = read_csv::<(Address, Register)>(&get_path("reg_jump.facts"))
+    program.reg_jump = read_csv::<(Address, Register)>(&get_path("reg_jump.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.reg_map = read_csv::<(InputReg, Register)>(&get_path("reg_map.facts"))
+    program.reg_map = read_csv::<(InputReg, Register)>(&get_path("reg_map.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.reg_used_for = read_csv::<(Address, Register, String)>(&get_path("reg_used_for.facts"))
+    program.reg_used_for = read_csv::<(Address, Register, String)>(&get_path("reg_used_for.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.register_access = read_csv::<(Address, InputReg, AccessMode)>(&get_path("register_access.facts"))
+    program.register_access = read_csv::<(Address, InputReg, AccessMode)>(&get_path("register_access.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.relative_address = read_csv::<(Address, u64, Address, Address, Address, String)>(&get_path("relative_address.facts"))
+    program.relative_address = read_csv::<(Address, u64, Address, Address, Address, String)>(&get_path("relative_address.csv"))
         .map(|(a, b, c, d, e, f)| (a, b, c, d, e, f))
         .collect_vec();
 
-    program.relative_address_start = read_csv::<(Address, u64, Address, Address, String)>(&get_path("relative_address_start.facts"))
+    program.relative_address_start = read_csv::<(Address, u64, Address, Address, String)>(&get_path("relative_address_start.csv"))
         .map(|(a, b, c, d, e)| (a, b, c, d, e))
         .collect_vec();
 
-    program.relocation = read_csv::<(Address, String, String, i64, u64, String, String)>(&get_path("relocation.facts"))
+    program.relocation = read_csv::<(Address, String, String, i64, u64, String, String)>(&get_path("relocation.csv"))
         .map(|(a, b, c, d, e, f, g)| (a, b, c, d, e, f, g))
         .collect_vec();
 
-    program.relocation_adjustment_total = read_csv::<(Address, i64)>(&get_path("relocation_adjustment_total.facts"))
+    program.relocation_adjustment_total = read_csv::<(Address, i64)>(&get_path("relocation_adjustment_total.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.simple_data_access_pattern = read_csv::<(Address, u64, u64, Address)>(&get_path("simple_data_access_pattern.facts"))
+    program.simple_data_access_pattern = read_csv::<(Address, u64, u64, Address)>(&get_path("simple_data_access_pattern.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.stack_base_reg_move = read_csv::<(Address, Address, Register, Register)>(&get_path("stack_base_reg_move.facts"))
+    program.stack_base_reg_move = read_csv::<(Address, Address, Register, Register)>(&get_path("stack_base_reg_move.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.stack_def_use_block_last_def = read_csv::<(Address, Address, StackVar)>(&get_path("stack_def_use.block_last_def.facts"))
+    program.stack_def_use_block_last_def = read_csv::<(Address, Address, StackVar)>(&get_path("stack_def_use.block_last_def.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.stack_def_use_def = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.def.facts"))
+    program.stack_def_use_def = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.def.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.stack_def_use_defined_in_block = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.defined_in_block.facts"))
+    program.stack_def_use_defined_in_block = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.defined_in_block.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.stack_def_use_live_var_def = read_csv::<(Address, StackVar, StackVar, Address)>(&get_path("stack_def_use.live_var_def.facts"))
+    program.stack_def_use_live_var_def = read_csv::<(Address, StackVar, StackVar, Address)>(&get_path("stack_def_use.live_var_def.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.stack_def_use_moves_limit = read_csv::<(u64,)>(&get_path("stack_def_use.moves_limit.facts"))
+    program.stack_def_use_moves_limit = read_csv::<(u64,)>(&get_path("stack_def_use.moves_limit.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.stack_def_use_ref_in_block = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.ref_in_block.facts"))
+    program.stack_def_use_ref_in_block = read_csv::<(Address, StackVar)>(&get_path("stack_def_use.ref_in_block.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.stack_def_use_used = read_csv::<(Address, StackVar, OperandIndex)>(&get_path("stack_def_use.used.facts"))
+    program.stack_def_use_used = read_csv::<(Address, StackVar, OperandIndex)>(&get_path("stack_def_use.used.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.stack_def_use_used_in_block = read_csv::<(Address, Address, StackVar, OperandIndex)>(&get_path("stack_def_use.used_in_block.facts"))
+    program.stack_def_use_used_in_block = read_csv::<(Address, Address, StackVar, OperandIndex)>(&get_path("stack_def_use.used_in_block.csv"))
         .map(|(a, b, c, d)| (a, b, c, d))
         .collect_vec();
 
-    program.step_limit = read_csv::<(u64,)>(&get_path("step_limit.facts"))
+    program.step_limit = read_csv::<(u64,)>(&get_path("step_limit.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 
-    program.symbol = read_csv::<(Address, u64, String, String, String, u64, String, u64, String)>(&get_path("symbol.facts"))
+    program.symbol = read_csv::<(Address, u64, String, String, String, u64, String, u64, String)>(&get_path("symbol.csv"))
         .map(|(a, b, c, d, e, f, g, h, i)| (a, b, c, d, e, f, g, h, i))
         .collect_vec();
 
-    program.symbolic_expr_from_relocation = read_csv::<(Address, u64, String, i64, Address)>(&get_path("symbolic_expr_from_relocation.facts"))
+    program.symbolic_expr_from_relocation = read_csv::<(Address, u64, String, i64, Address)>(&get_path("symbolic_expr_from_relocation.csv"))
         .map(|(a, b, c, d, e)| (a, b, c, d, e))
         .collect_vec();
 
-    program.take_address = read_csv::<(Address, Address)>(&get_path("take_address.facts"))
+    program.take_address = read_csv::<(Address, Address)>(&get_path("take_address.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.tls_descriptor = read_csv::<(Address, u64)>(&get_path("tls_descriptor.facts"))
+    program.tls_descriptor = read_csv::<(Address, u64)>(&get_path("tls_descriptor.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.tls_index = read_csv::<(Address, u64)>(&get_path("tls_index.facts"))
+    program.tls_index = read_csv::<(Address, u64)>(&get_path("tls_index.csv"))
         .map(|(a, b)| (a, b))
         .collect_vec();
 
-    program.tls_segment = read_csv::<(Address, Address, u64)>(&get_path("tls_segment.facts"))
+    program.tls_segment = read_csv::<(Address, Address, u64)>(&get_path("tls_segment.csv"))
         .map(|(a, b, c)| (a, b, c))
         .collect_vec();
 
-    program.track_register = read_csv::<(Register,)>(&get_path("track_register.facts"))
+    program.track_register = read_csv::<(Register,)>(&get_path("track_register.csv"))
         .map(|(a,)| (a,))
         .collect_vec();
 

@@ -3,6 +3,8 @@
 
 To create a dataset from a binary, you can use the following command :
 ```bash
+ddisasm -I --debug-dir /tmp </path/to/binary> # wait this this command to finish or throw an error
+cp /tmp/disassembly/binary.gtirb <dataset_dir>/disassembly
 ddisasm --asm=</path/to/asm> -j 12 --debug-dir <dataset_dir> </path/to/binary>
 ```
 
