@@ -31,10 +31,13 @@
 
 	// Configure tool-specific properties.
 	"customizations": {
-		// rust-analyzer
-		"rust-analyzer": {
-			"install": "latest"
-		},
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer",
+				"fill-labs.dependi",
+			]
+		}
+
 	},
 
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
