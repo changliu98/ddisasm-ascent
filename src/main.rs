@@ -522,7 +522,7 @@ ascent_par! {
         value_reg(ea_reg_def, reg, ea_def, "NONE", 0, value, _),
         reg_def_use_def_used(ea_reg_def, reg, used_ea, _);
 
-        def_used_for_address(ea_def, reg, type_here) <-- 
+    def_used_for_address(ea_def, reg, type_here) <-- 
         reg_def_use_def_used(ea_def, reg, ea, _),
         reg_used_for(ea, reg, type_here);
 
@@ -531,11 +531,13 @@ ascent_par! {
         reg_def_use_def_used(ea_def, reg, ea_used, _);
 
     def_used_for_address(ea_def, reg1, type_here) <-- 
-        def_used_for_address(ea_load, reg2, type_here),
-        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
+        reg_def_use_def_used(ea_def, reg1, ea_store, _),
         arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, stack_pos_store),
-        stack_def_use_def_used(ea_store, (reg_base_store.clone(), *stack_pos_store), ea_load, (reg_base_load.clone(), *stack_pos_load), _),
-        reg_def_use_def_used(ea_def, reg1, ea_store, _);
+        stack_def_use_def_used(ea_store, (reg_base_store.clone(), *stack_pos_store), ea_load, tmp_v, _),
+        let (reg_base_load, stack_pos_load) = tmp_v,
+        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
+        def_used_for_address(ea_load, reg2, type_here)
+        ;
 
     flags_and_jump_pair(ea_flags, ea_jmp, cc) <-- 
         arch_condition_flags_reg(reg),
@@ -972,11 +974,20 @@ ascent_par! {
         loaded_section(tmp_88, _, name),
         if *tmp_88 == (*offset as Address);
 
+    // reg_reg_arithmetic_operation_defs(EA,Reg_def,EA_def1,Reg1,EA_def2,Reg2,Mult,Offset):-
+    //     def_used_for_address(EA,Reg_def,_),
+    //     arch.reg_reg_arithmetic_operation(EA,Reg_def,Reg1,Reg2,Mult,Offset),
+    //     Reg1 != Reg2,
+    //     reg_def_use.def_used(EA_def1,Reg1,EA,_),
+    //     EA != EA_def1,
+    //     reg_def_use.def_used(EA_def2,Reg2,EA,_),
+    //     EA != EA_def2.
+    // .plan 1: (3,1,2,4), 2: (4,1,2,3)
     reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset) <--
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
         def_used_for_address(ea, reg_def, _),
         arch_reg_reg_arithmetic_operation(ea, reg_def, reg1, reg2, mult, offset),
         if reg1 != reg2,
-        reg_def_use_def_used(ea_def1, reg1, ea, _),
         if ea != ea_def1,
         reg_def_use_def_used(ea_def2, reg2, ea, _),
         if ea != ea_def2;
@@ -1098,10 +1109,15 @@ ascent_par! {
         !is_padding(dest),
         code_in_block(dest, _);
 
+    // stack_def_use_def_used(EA_def,VarDef,EA_used,VarUsed,Index) :- 
+    //     stack_def_use_live_var_at_block_end(Block,BlockUsed,Var),
+    //     stack_def_use_live_var_def(Block,VarDef,Var,EA_def),
+    //     stack_def_use_live_var_used(BlockUsed,Var,VarUsed,EA_used,Index,_).
+    //  .plan 1:(3,1,2)
     stack_def_use_def_used(ea_def, var_def, ea_used, var_used, index) <--
+        stack_def_use_live_var_used(block_used, var, var_used, ea_used, index, _),
         stack_def_use_live_var_at_block_end(block, block_used, var),
-        stack_def_use_live_var_def(block, var_def, var, ea_def),
-        stack_def_use_live_var_used(block_used, var, var_used, ea_used, index, _);
+        stack_def_use_live_var_def(block, var_def, var, ea_def);
 
     stack_def_use_def_used(ea_def, def_var, ea_used, used_var, index) <--
         stack_def_use_live_var_used_in_block(_, ea, def_var, used_var, ea_used, index, _),
@@ -1115,12 +1131,18 @@ ascent_par! {
         stack_def_use_def_used(ea_def, var_def, ea_used, var, _),
         stack_def_use_live_var_used(next_used_block, var, var_used, next_ea_used, next_index, _);
 
+    // stack_def_use_live_var_at_block_end(PrevBlock,BlockUsed,[inlined_BaseReg_374,inlined_StackPos_374]) :- 
+    //     stack_def_use_live_var_at_block_end(Block,BlockUsed,[inlined_BaseReg_374,inlined_StackPos_374]),
+    //     !stack_def_use_ref_in_block(Block,[inlined_BaseReg_374,inlined_StackPos_374]),
+    //     !reg_def_use_defined_in_block(Block,inlined_BaseReg_374),
+    //     block_next(PrevBlock,_,Block).
+    //  .plan 1:(2,1)
     stack_def_use_live_var_at_block_end(prev_block, block_used, stack_var) <--
+        block_next(prev_block, _, block),
         stack_def_use_live_var_at_block_end(block, block_used, stack_var),
         !stack_def_use_ref_in_block(block, stack_var),
         let (inlined_base_reg_374, inlined_stack_pos_374) = stack_var,
-        !reg_def_use_defined_in_block(block, inlined_base_reg_374),
-        block_next(prev_block, _, block);
+        !reg_def_use_defined_in_block(block, inlined_base_reg_374);
 
     stack_def_use_live_var_at_block_end(prev_block, block, var) <--
         block_next(prev_block, _, block),
@@ -1907,8 +1929,8 @@ fn main() {
     println!("Finished reading files!");
     program.run();
 
-    println!("{:?}", program.scc_times_summary());
-    println!("{:?}", program.relation_sizes_summary());
+    println!("{}", program.scc_times_summary());
+    println!("{}", program.relation_sizes_summary());
 
     let reg_jump_size = program.reg_jump.len();
     println!("reg_jump size: {:?}", reg_jump_size);
