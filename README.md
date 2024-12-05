@@ -22,5 +22,5 @@ DDISASM_GTIRB_MODULE_NAME=<binary> DDISASM_DEBUG_DIR=./data/disassembly/ LD_LIBR
 ```
 
 
-RAYON_NUM_THREADS=12 DDISASM_GTIRB_MODULE_NAME=cvc5 DDISASM_DEBUG_DIR=./data/cvc5 LD_LIBRARY_PATH=/usr/local/src/ddisasm/build/lib:$LD_LIBRARY_PATH ./target/release/ddisasm-ascent ./data/cvc5 ./data/bin/cvc5
+RAYON_NUM_THREADS=12 DDISASM_GTIRB_MODULE_NAME=cvc5 DDISASM_DEBUG_DIR=./data/cvc5 LD_LIBRARY_PATH=/usr/local/src/ddisasm/build/lib:$LD_LIBRARY_PATH ./target/release/ddisasm-ascent ./data/cvc5 ./data/bin/cvc5 > output2
 RAYON_NUM_THREADS=12 DDISASM_GTIRB_MODULE_NAME=rustc DDISASM_DEBUG_DIR=./data/rustc LD_LIBRARY_PATH=/usr/local/src/ddisasm/build/lib:$LD_LIBRARY_PATH ./target/release/ddisasm-ascent ./data/rustc ./data/bin/rustc

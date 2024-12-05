@@ -1,10 +1,8 @@
 // use ascent::ascent;
-use std::process::Command;
 use std::cmp::max;
 use std::borrow::Borrow;
 
 use ascent::*;
-use itertools::Itertools;
 
 fn read_csv<T>(path: &str) -> impl Iterator<Item = T>
 where
@@ -1088,10 +1086,28 @@ ascent_par! {
         !is_padding(dest),
         code_in_block(dest, _);
 
+    // stack_def_use_def_used(EA_def,VarDef,EA_used,VarUsed,Index) :- 
+    //     stack_def_use_live_var_at_block_end(Block,BlockUsed,Var),
+    //     stack_def_use_live_var_def(Block,VarDef,Var,EA_def),
+    //     stack_def_use_live_var_used(BlockUsed,Var,VarUsed,EA_used,Index,_).
+    //  .plan 1:(3,1,2)
+    // stack_def_use_def_used(ea_def, var_def, ea_used, var_used, index) <--
+    //     delta stack_def_use_live_var_used(block_used, var, var_used, ea_used, index, _),
+    //     stack_def_use_live_var_at_block_end(block, block_used, var),
+    //     stack_def_use_live_var_def(block, var_def, var, ea_def);
+    // stack_def_use_def_used(ea_def, var_def, ea_used, var_used, index) <--
+    //     delta stack_def_use_live_var_at_block_end(block, block_used, var),
+    //     stack_def_use_live_var_used(block_used, var, var_used, ea_used, index, _),
+    //     stack_def_use_live_var_def(block, var_def, var, ea_def);
+    // stack_def_use_def_used(ea_def, var_def, ea_used, var_used, index) <--
+    //     delta stack_def_use_live_var_def(block, var_def, var, ea_def),
+    //     stack_def_use_live_var_at_block_end(block, block_used, var),
+    //     stack_def_use_live_var_used(block_used, var, var_used, ea_used, index, _);
     stack_def_use_def_used(ea_def, var_def, ea_used, var_used, index) <--
         stack_def_use_live_var_used(block_used, var, var_used, ea_used, index, _),
         stack_def_use_live_var_at_block_end(block, block_used, var),
         stack_def_use_live_var_def(block, var_def, var, ea_def);
+
 
     stack_def_use_def_used(ea_def, def_var, ea_used, used_var, index) <--
         stack_def_use_live_var_used_in_block(_, ea, def_var, used_var, ea_used, index, _),
@@ -1106,11 +1122,23 @@ ascent_par! {
         stack_def_use_def_used(ea_def, var_def, ea_used, var, _);
 
     stack_def_use_live_var_at_block_end(prev_block, block_used, stack_var) <--
-        block_next(prev_block, _, block),
+        delta block_next(prev_block, _, block),
         stack_def_use_live_var_at_block_end(block, block_used, stack_var),
         !stack_def_use_ref_in_block(block, stack_var),
         let (inlined_base_reg_374, inlined_stack_pos_374) = stack_var,
         !reg_def_use_defined_in_block(block, inlined_base_reg_374);
+    stack_def_use_live_var_at_block_end(prev_block, block_used, stack_var) <--
+        delta stack_def_use_live_var_at_block_end(block, block_used, stack_var),
+        !stack_def_use_ref_in_block(block, stack_var),
+        let (inlined_base_reg_374, inlined_stack_pos_374) = stack_var,
+        !reg_def_use_defined_in_block(block, inlined_base_reg_374),
+        block_next(prev_block, _, block);
+    // stack_def_use_live_var_at_block_end(prev_block, block_used, stack_var) <--
+    //     block_next(prev_block, _, block),
+    //     stack_def_use_live_var_at_block_end(block, block_used, stack_var),
+    //     !stack_def_use_ref_in_block(block, stack_var),
+    //     let (inlined_base_reg_374, inlined_stack_pos_374) = stack_var,
+    //     !reg_def_use_defined_in_block(block, inlined_base_reg_374);
 
     stack_def_use_live_var_at_block_end(prev_block, block, var) <--
         block_next(prev_block, _, block),
@@ -1335,12 +1363,26 @@ ascent_par! {
         track_register(dst);
 
     value_reg_edge(ea_load, reg2, ea_prev, reg1, 1, 0) <--
-        stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _),
+        delta stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _),
         let (reg_base_store, stack_pos_store) = base_var,
         let (reg_base_load, stack_pos_load) = load_var,
         arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, *stack_pos_store as i64),
         arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, *stack_pos_load as i64),
         reg_def_use_def_used(ea_prev, reg1, ea_store, _);
+    value_reg_edge(ea_load, reg2, ea_prev, reg1, 1, 0) <--
+        delta reg_def_use_def_used(ea_prev, reg1, ea_store, _),
+        arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, stack_pos_store),
+        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
+        let base_var = (*reg_base_store, *stack_pos_store),
+        let load_var = (*reg_base_load, *stack_pos_load),
+        stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _);
+    // value_reg_edge(ea_load, reg2, ea_prev, reg1, 1, 0) <--
+    //     stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _),
+    //     let (reg_base_store, stack_pos_store) = base_var,
+    //     let (reg_base_load, stack_pos_load) = load_var,
+    //     arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, *stack_pos_store as i64),
+    //     arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, *stack_pos_load as i64),
+    //     reg_def_use_def_used(ea_prev, reg1, ea_store, _);
 
     value_reg_limit(ea_jmp, ea_branch, reg, (immediate + branch_offset), branch_lt) <--
         compare_and_jump_immediate(_, ea_jmp, cc, reg, immediate),
@@ -1910,9 +1952,9 @@ fn main() {
     let base_relative_operation_size = program.base_relative_operation.len();
     println!("base_relative_operation size: {:?}", base_relative_operation_size);
 
-    for (x1, x2, x3, x4, x5, x6, x7) in program.value_reg.iter() {
-        println!("{}\t{}\t{}\t{}\t{}\t{}\t{}", x1, x2, x3, x4, x5, x6, x7);
-    }
+    // for (x1, x2, x3, x4, x5, x6, x7) in program.value_reg.iter() {
+    //     println!("{}\t{}\t{}\t{}\t{}\t{}\t{}", x1, x2, x3, x4, x5, x6, x7);
+    // }
 
     let value_reg_size = program.value_reg.len();
     println!("value_reg size: {:?}", value_reg_size);

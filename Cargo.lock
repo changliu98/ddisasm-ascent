@@ -23,7 +23,6 @@ checksum = "45862d1c77f2228b9e10bc609d5bc203d86ebc9b87ad8d5d5167a6c9abf739d9"
 [[package]]
 name = "ascent"
 version = "0.7.0"
-source = "git+https://github.com/StarGazerM/ascent-plusplus.git?branch=slog#561bc7cba2bc772aacb2a526f8d9acd71c3813e4"
 dependencies = [
  "ascent_base",
  "ascent_macro",
@@ -41,7 +40,6 @@ dependencies = [
 [[package]]
 name = "ascent_base"
 version = "0.7.0"
-source = "git+https://github.com/StarGazerM/ascent-plusplus.git?branch=slog#561bc7cba2bc772aacb2a526f8d9acd71c3813e4"
 dependencies = [
  "paste",
 ]
@@ -49,7 +47,6 @@ dependencies = [
 [[package]]
 name = "ascent_macro"
 version = "0.7.0"
-source = "git+https://github.com/StarGazerM/ascent-plusplus.git?branch=slog#561bc7cba2bc772aacb2a526f8d9acd71c3813e4"
 dependencies = [
  "ascent_base",
  "derive-syn-parse",
