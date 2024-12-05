@@ -51,7 +51,6 @@ type LimitType=&'static str;
 type AccessMode=&'static str;
 type SymbolPosition=&'static str;
 
-// Todo: var not bounded
 type StackVar=(Register, i64);
 
 type ConditionCode=&'static str;
@@ -291,13 +290,14 @@ ascent_par! {
     relation tls_segment(Address, Address, u64);
     relation track_register(Register);
 
+
     block_next(block, ea, block2) <-- 
         block_last_instruction(block, ea),
         may_fallthrough(ea, block2), 
         !no_return_call_propagated(ea), 
         !inter_procedural_edge(ea, block2),
         block(block2);
-
+    
     block_next(block, ea, block2) <-- 
         lsda_callsite_addresses(beg, end, block2),
         block_last_instruction(block, ea),
@@ -305,11 +305,13 @@ ascent_par! {
         if ea < end,
         block(block2);
 
+
     block_next(block, ea, ea_next) <-- 
         block_last_instruction(block, ea),
         direct_jump(ea, ea_next),
         !inter_procedural_edge(ea, ea_next);
-      
+    
+    
     compare_and_jump_immediate(ea, ea, cc, reg, 0) <-- 
         instruction(ea, _, _, operation, _, _, _, _, _, _),
         arch_cmp_zero_operation(operation),
@@ -317,7 +319,8 @@ ascent_par! {
         arch_conditional(ea, cc),
         instruction_get_op(ea, _, op),
         op_regdirect_contains_reg(op, reg);
-        
+    
+
     compare_and_jump_immediate(ea, ea, cc, reg, 0) <-- 
         instruction(ea, _, _, operation, _, _, _, _, _, _),
         arch_cmp_zero_operation(operation),
@@ -327,6 +330,7 @@ ascent_par! {
         register_access(ea, reg_in, "R"),
         reg_map(reg_in, reg),
         !op_regdirect_contains_reg(op, reg);
+    
 
     compare_and_jump_register(ea, ea, cc, reg1, reg2) <-- 
         cmp_reg_to_reg(ea, reg1, reg2),
@@ -343,7 +347,6 @@ ascent_par! {
         relocation_adjustment_total(tmp_53, adjustment),
         relocation(tmp_53, "GOTOFF", symbol, addend, symbol_index, _, _);
 
-    // TODO: why mult is same as size?
     jump_table_element_access(ea, size, (*table_start as Address), (reg_index.clone() as Register)) <-- 
         data_access(ea, _, "NONE", "NONE", reg_index, mult, table_start, size),
         if *mult as u64 == *size,
@@ -364,9 +367,13 @@ ascent_par! {
         reg_def_use_used(ea_used, var, index),
         reg_def_use_block_last_def(ea_used, ea_def, var);
 
+    // Pin
+
     reg_def_use_live_var_used(block, var, var, ea_used, index, 0) <-- 
         reg_def_use_used_in_block(block, ea_used, var, index),
         !reg_def_use_block_last_def(ea_used, _, var);
+
+    // Pin
 
     reg_has_base_image(ea, reg) <-- 
         base_address(image_base),
@@ -489,6 +496,9 @@ ascent_par! {
         block_last_instruction(block, ea),
         jump_table_target(ea, dest);
 
+
+    // HERE
+
     cmp_defines(ea_jmp, ea_dst, reg) <-- 
         compare_and_jump_immediate(_, ea_jmp, "E", reg, _),
         direct_jump(ea_jmp, ea_dst);
@@ -517,7 +527,7 @@ ascent_par! {
         cmp_reg_to_reg(ea_cmp, reg1, reg2);
 
     const_value_reg_used(used_ea, ea_def, ea_reg_def, reg, value) <-- 
-        value_reg(ea_reg_def, reg, ea_def, "NONE", 0, value, _),
+        value_reg(ea_reg_def, reg, ea_def, "NONE", 0, value, a),
         reg_def_use_def_used(ea_reg_def, reg, used_ea, _);
 
     def_used_for_address(ea_def, reg, type_here) <-- 
@@ -601,12 +611,15 @@ ascent_par! {
         if table_start_u64 <= *end;
 
     jump_table_element_access(ea, size, ((base + offset) as Address), reg_index) <-- 
-        data_access(ea, _, "NONE", reg_base, reg_index, _, offset, size),
+        data_access(ea, _, "NONE", reg_base, reg_index, size1, offset, size),
+        if *size1 == (*size as Number),
         if *reg_base != "NONE",
+        if *reg_index != "NONE",
         const_value_reg_used(ea, _, _, reg_base, base),
         data_segment(beg, end),
         if *base + *offset >= *beg as Number,
         if *base + *offset <= *end as Number;
+        // let () = println!("{:?}", (ea, size, ((base + offset) as Address), reg_index));
 
     jump_table_max(table_start, *table_start + (*value as Address) * *size) <-- 
         jump_table_element_access(ea, size, table_start, reg_index),
@@ -887,7 +900,12 @@ ascent_par! {
         instruction(ea_cmp, _, _, operation, _, _, _, _, _, _),
         !arch_cmp_operation(operation);    
 
-    // .plan 1:(3,1,2)
+
+    reg_def_use_def_used(ea_def, var, ea_used, index) <--
+        reg_def_use_live_var_at_block_end(block, block_used, var),
+        reg_def_use_live_var_def(block, var1, var, ea_def),
+        reg_def_use_live_var_used(block_used, var, var1, ea_used, index, _);
+
     reg_def_use_def_used(ea_def, var, next_ea_used, next_index) <--
         reg_def_use_live_var_used(next_used_block, var, var1, next_ea_used, next_index, _),
         if var == var1,
@@ -899,10 +917,12 @@ ascent_par! {
         reg_def_use_return_block_end(callee, _, _, block_end),
         reg_def_use_block_last_def(block_end, ea_def, reg);
 
+
     reg_def_use_live_var_at_block_end(prev_block, block, var) <--
         block_next(prev_block, prev_block_end, block),
         reg_def_use_live_var_used(block, var, _, _, _, _),
         !reg_def_use_flow_def(prev_block_end, var, block, _);
+
 
     reg_def_use_live_var_at_block_end(prev_block, block_used, var) <--
         reg_def_use_live_var_at_block_end(block, block_used, var),
@@ -914,11 +934,10 @@ ascent_par! {
         reg_def_use_used_in_block(block, ea_used, var, _),
         !reg_def_use_defined_in_block(block, var);
 
-    // Todo fix unbounded reg
     reg_def_use_live_var_used(ret_block, reg, reg, ea_used, index, 1) <--
         reg_def_use_return_block_end(callee, _, ret_block, ret_block_end),
-        // !reg_def_use_block_last_def(ret_block_end, _, reg),
-        reg_def_use_return_val_used(_, callee, reg, ea_used, index);
+        reg_def_use_return_val_used(_, callee, reg, ea_used, index),
+        !reg_def_use_block_last_def(ret_block_end, _, reg);
 
     reg_def_use_return_val_used(ea_call, callee, reg, ea_used, index_used) <--
         arch_return_reg(reg),
@@ -941,14 +960,6 @@ ascent_par! {
         got_section(name),
         loaded_section((*offset as Address), _, name);
 
-    // reg_reg_arithmetic_operation_defs(EA,Reg_def,EA_def1,Reg1,EA_def2,Reg2,Mult,Offset):-
-    //     def_used_for_address(EA,Reg_def,_),
-    //     arch.reg_reg_arithmetic_operation(EA,Reg_def,Reg1,Reg2,Mult,Offset),
-    //     Reg1 != Reg2,
-    //     reg_def_use.def_used(EA_def1,Reg1,EA,_),
-    //     EA != EA_def1,
-    //     reg_def_use.def_used(EA_def2,Reg2,EA,_),
-    //     EA != EA_def2.
     // .plan 1: (3,1,2,4), 2: (4,1,2,3)
     reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset) <--
         reg_def_use_def_used(ea_def1, reg1, ea, _),
@@ -958,6 +969,7 @@ ascent_par! {
         if ea != ea_def1,
         reg_def_use_def_used(ea_def2, reg2, ea, _),
         if ea != ea_def2;
+
 
     relative_jump_table_entry_candidate(table_start, table_start, size, reference, (*reference + (unsafe {functor_data_unsigned(*table_start as Address, *size as size_t)} as Address) ), scale, 0) <--
         jump_table_start(_, size, table_start, reference, scale),
@@ -1076,11 +1088,6 @@ ascent_par! {
         !is_padding(dest),
         code_in_block(dest, _);
 
-    // stack_def_use_def_used(EA_def,VarDef,EA_used,VarUsed,Index) :- 
-    //     stack_def_use_live_var_at_block_end(Block,BlockUsed,Var),
-    //     stack_def_use_live_var_def(Block,VarDef,Var,EA_def),
-    //     stack_def_use_live_var_used(BlockUsed,Var,VarUsed,EA_used,Index,_).
-    //  .plan 1:(3,1,2)
     stack_def_use_def_used(ea_def, var_def, ea_used, var_used, index) <--
         stack_def_use_live_var_used(block_used, var, var_used, ea_used, index, _),
         stack_def_use_live_var_at_block_end(block, block_used, var),
@@ -1098,12 +1105,6 @@ ascent_par! {
         stack_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
         stack_def_use_def_used(ea_def, var_def, ea_used, var, _);
 
-    // stack_def_use_live_var_at_block_end(PrevBlock,BlockUsed,[inlined_BaseReg_374,inlined_StackPos_374]) :- 
-    //     stack_def_use_live_var_at_block_end(Block,BlockUsed,[inlined_BaseReg_374,inlined_StackPos_374]),
-    //     !stack_def_use_ref_in_block(Block,[inlined_BaseReg_374,inlined_StackPos_374]),
-    //     !reg_def_use_defined_in_block(Block,inlined_BaseReg_374),
-    //     block_next(PrevBlock,_,Block).
-    //  .plan 1:(2,1)
     stack_def_use_live_var_at_block_end(prev_block, block_used, stack_var) <--
         block_next(prev_block, _, block),
         stack_def_use_live_var_at_block_end(block, block_used, stack_var),
@@ -1121,6 +1122,7 @@ ascent_par! {
         let (inlined_base_reg_375, inlined_stack_pos_375) = stack_var,
         !reg_def_use_defined_in_block(block, inlined_base_reg_375),
         !stack_def_use_defined_in_block(block, stack_var);
+
 
     stack_def_use_live_var_used(block, live_var, used_var, ea_used, index, moves) <--
         stack_def_use_live_var_used_in_block(block, block, live_var, used_var, ea_used, index, moves);
@@ -1172,11 +1174,12 @@ ascent_par! {
         !arch_stack_pointer(base_reg);
 
     stack_def_use_live_var_used_in_block(block, ea, (src_base_reg.clone(), stack_pos.clone()), used_var, ea_used, index, moves) <--
-    
         stack_def_use_live_var_used_in_block(block, next, dst_var, used_var, ea_used, index, moves),
         let (dst_base_reg, stack_pos) = dst_var,
         block_instruction_next(block, ea, next),
         stack_base_reg_move(_, ea, src_base_reg, dst_base_reg);
+
+
 
     tls_desc_call(load, call, (start + offset)) <--
         tls_segment(start, _, _),
@@ -1200,16 +1203,16 @@ ascent_par! {
         call_tls_get_addr(call, reg),
         tls_segment(start, _, _);
 
-    value_reg(ea, reg, ea, "None", 0, immediate, 1) <--
+    value_reg(ea, reg, ea, "NONE", 0, immediate, 1) <--
         def_used_for_address(ea, reg, _),
         arch_move_reg_imm(ea, reg, immediate, _),
         !instruction_has_relocation(ea, _);
 
-    value_reg(ea, reg, ea, "None", 0, 0, 1) <--
+    value_reg(ea, reg, ea, "NONE", 0, 0, 1) <--
         def_used_for_address(ea, reg, _),
         is_xor_reset(ea);
 
-    value_reg(ea, reg, ea, "None", 0, immediate, 1) <--
+    value_reg(ea, reg, ea, "NONE", 0, immediate, 1) <--
         def_used_for_address(ea, reg, _),
         reg_def_use_flow_def(ea, reg, _, immediate);
 
@@ -1223,7 +1226,7 @@ ascent_par! {
 
     value_reg(ea, reg, ea_from, "Unknown", immediate, base, (steps + 1)) <--
         step_limit(step_limit),
-        value_reg(ea, reg, ea_from, "None", 0, base, steps),
+        value_reg(ea, reg, ea_from, "NONE", 0, base, steps),
         if *steps <= (step_limit - 2),
         value_reg_edge(ea, reg, ea, reg, 1, immediate),
         if *immediate != 0;
@@ -1242,11 +1245,11 @@ ascent_par! {
         value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
         if ea1 < ea2;
 
-    value_reg(ea, reg, ea, "None", 0, (*address as Number), 1) <--
+    value_reg(ea, reg, ea, "NONE", 0, (*address as Number), 1) <--
         arch_return_reg(reg),
         tls_get_addr(_, ea, address);
 
-    value_reg(ea, reg, ea, "None", 0, (*address as Number), 1) <--
+    value_reg(ea, reg, ea, "NONE", 0, (*address as Number), 1) <--
         arch_return_reg(reg),
         tls_desc_call(_, ea, address);
 
@@ -1281,7 +1284,6 @@ ascent_par! {
         if ea != ea_third,
         if *reg3 != "NONE";
 
-    // Todo: add max
     value_reg(ea, reg_def, ea_third, reg3, mult1, ((offset + offset1) + (offset2 * mult)), (max(steps1, steps2) + 2)) <--
         step_limit(step_limit),
         reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset),
@@ -1441,7 +1443,6 @@ ascent_par! {
     //     Steps2 <= Steps1.
     // value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps1) <= value_reg(EA,Reg,EA_reg1,Reg1,Multiplier,Offset,Steps2) :- 
     //     Steps2 <= Steps1.    
-
 }
 
 fn main() {
@@ -1488,9 +1489,10 @@ fn main() {
         .map(|(x,)| (leak(x),))
         .collect();
 
+    // Todo
     // arch_cmp_zero_operation("")<--
     //     false.
-    // Todo
+
 
     // .input arch_conditional(filename="arch.conditional.csv")
     program.arch_conditional = read_csv::<(Address, String)>(&get_path("arch.conditional.csv"))
@@ -1533,6 +1535,9 @@ fn main() {
         .collect();
 
 
+    program.arch_pc_relative_addr = read_csv::<(Address, String, Address)>(&get_path("arch.pc_relative_addr.facts"))
+        .map(|(a, b, c)| (a, leak(b), c))
+        .collect();
     // arch_pc_relative_addr(0,"",0)<-- false.
     // Todo
 
@@ -1890,6 +1895,8 @@ fn main() {
         .map(|(a,)| (leak(a),))
         .collect();
 
+    program.step_limit_small = ascent::boxcar::vec![(3 as u64,)];
+
 
     println!("Finished reading files!");
     program.run();
@@ -1902,6 +1909,10 @@ fn main() {
 
     let base_relative_operation_size = program.base_relative_operation.len();
     println!("base_relative_operation size: {:?}", base_relative_operation_size);
+
+    for (x1, x2, x3, x4, x5, x6, x7) in program.value_reg.iter() {
+        println!("{}\t{}\t{}\t{}\t{}\t{}\t{}", x1, x2, x3, x4, x5, x6, x7);
+    }
 
     let value_reg_size = program.value_reg.len();
     println!("value_reg size: {:?}", value_reg_size);
