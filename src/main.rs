@@ -297,11 +297,11 @@ ascent_par! {
         block(block2);
     
     block_next(block, ea, block2) <-- 
+        block(block2),
         lsda_callsite_addresses(beg, end, block2),
         block_last_instruction(block, ea),
         if ea >= beg,
-        if ea < end,
-        block(block2);
+        if ea < end;
 
 
     block_next(block, ea, ea_next) <-- 
@@ -339,11 +339,11 @@ ascent_par! {
         arch_pc_relative_addr(ea, reg, _);
 
     got_relative_operand(ea, index, (((*target_ea as Number) + addend) + adjustment) as Address) <-- 
-        symbol(target_ea, _, _, _, _, _, _, symbol_index, symbol),
         instruction_displacement_offset(ea, index, displacement_offset, _),
         let tmp_53 = ea + displacement_offset,
-        relocation_adjustment_total(tmp_53, adjustment),
-        relocation(tmp_53, "GOTOFF", symbol, addend, symbol_index, _, _);
+        relocation(tmp_53, "GOTOFF", symbol, addend, symbol_index, _, _),
+        symbol(target_ea, _, _, _, _, _, _, symbol_index, symbol),
+        relocation_adjustment_total(tmp_53, adjustment);
 
     jump_table_element_access(ea, size, (*table_start as Address), (reg_index.clone() as Register)) <-- 
         data_access(ea, _, "NONE", "NONE", reg_index, mult, table_start, size),
@@ -536,13 +536,36 @@ ascent_par! {
         def_used_for_address(ea_used, _, type_here),
         reg_def_use_def_used(ea_def, reg, ea_used, _);
 
+    // def_used_for_address(ea_def, reg1, type_here) <-- 
+    //     reg_def_use_def_used(ea_def, reg1, ea_store, _),
+    //     arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, stack_pos_store),
+    //     stack_def_use_def_used(ea_store, (reg_base_store.clone(), *stack_pos_store), ea_load, tmp_v, _),
+    //     let (reg_base_load, stack_pos_load) = tmp_v,
+    //     arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
+    //     def_used_for_address(ea_load, reg2, type_here);
     def_used_for_address(ea_def, reg1, type_here) <-- 
-        reg_def_use_def_used(ea_def, reg1, ea_store, _),
+        delta reg_def_use_def_used(ea_def, reg1, ea_store, _),
         arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, stack_pos_store),
         stack_def_use_def_used(ea_store, (reg_base_store.clone(), *stack_pos_store), ea_load, tmp_v, _),
         let (reg_base_load, stack_pos_load) = tmp_v,
         arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
         def_used_for_address(ea_load, reg2, type_here);
+    def_used_for_address(ea_def, reg1, type_here) <--
+        delta stack_def_use_def_used(ea_store, tmp_v1, ea_load, tmp_v2, _),
+        let (reg_base_store, stack_pos_store) = tmp_v1,
+        arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, stack_pos_store),
+        let (reg_base_load, stack_pos_load) = tmp_v2,
+        reg_def_use_def_used(ea_def, reg1, ea_store, _),
+        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
+        def_used_for_address(ea_load, reg2, type_here);
+    def_used_for_address(ea_def, reg1, type_here) <-- 
+        delta def_used_for_address(ea_load, reg2, type_here),
+        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
+        let tmp_v1 = (*reg_base_load, *stack_pos_load),
+        stack_def_use_def_used(ea_store, tmp_v2, ea_load, tmp_v1, _),
+        let (reg_base_store, stack_pos_store) = tmp_v2,
+        arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, stack_pos_store),
+        reg_def_use_def_used(ea_def, reg1, ea_store, _);
 
     flags_and_jump_pair(ea_flags, ea_jmp, cc) <-- 
         arch_condition_flags_reg(reg),
@@ -574,14 +597,47 @@ ascent_par! {
         if *offset != 0,
         got_reference_pointer(got);
 
+    // jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
+    //     pc_relative_operand(ea, 1, table_start_addr),
+    //     data_access(ea, _, _, _, _, _, _, size),
+    //     def_used_for_address(ea, _, "Jump"),
+    //     reg_def_use_def_used(ea, reg1, ea_add, _),
+    //     reg_def_use_def_used(ea2, reg2, ea_add, _),
+    //     take_address(ea2, table_start_addr),
+    //     arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+    //     data_segment(beg, end),
+    //     if table_start_addr >= beg,
+    //     if table_start_addr <= end;
     jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
+        delta def_used_for_address(ea, _, "Jump"),
         pc_relative_operand(ea, 1, table_start_addr),
         data_access(ea, _, _, _, _, _, _, size),
-        def_used_for_address(ea, _, "Jump"),
         reg_def_use_def_used(ea, reg1, ea_add, _),
         reg_def_use_def_used(ea2, reg2, ea_add, _),
         take_address(ea2, table_start_addr),
         arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+        data_segment(beg, end),
+        if table_start_addr >= beg,
+        if table_start_addr <= end;
+    jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
+        delta reg_def_use_def_used(ea, reg1, ea_add, _),
+        def_used_for_address(ea, _, "Jump"),
+        arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+        reg_def_use_def_used(ea2, reg2, ea_add, _),
+        pc_relative_operand(ea, 1, table_start_addr),
+        data_access(ea, _, _, _, _, _, _, size),
+        take_address(ea2, table_start_addr),
+        data_segment(beg, end),
+        if table_start_addr >= beg,
+        if table_start_addr <= end;
+    jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
+        delta reg_def_use_def_used(ea2, reg2, ea_add, _),
+        arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+        reg_def_use_def_used(ea, reg1, ea_add, _),
+        pc_relative_operand(ea, 1, table_start_addr),
+        take_address(ea2, table_start_addr),
+        data_access(ea, _, _, _, _, _, _, size),
+        def_used_for_address(ea, _, "Jump"),
         data_segment(beg, end),
         if table_start_addr >= beg,
         if table_start_addr <= end;
@@ -899,16 +955,41 @@ ascent_par! {
         !arch_cmp_operation(operation);    
 
 
+    // reg_def_use_def_used(ea_def, var, ea_used, index) <--
+    //     reg_def_use_live_var_at_block_end(block, block_used, var),
+    //     reg_def_use_live_var_def(block, var1, var, ea_def),
+    //     reg_def_use_live_var_used(block_used, var, var1, ea_used, index, _);
     reg_def_use_def_used(ea_def, var, ea_used, index) <--
-        reg_def_use_live_var_at_block_end(block, block_used, var),
+        delta reg_def_use_live_var_at_block_end(block, block_used, var),
         reg_def_use_live_var_def(block, var1, var, ea_def),
         reg_def_use_live_var_used(block_used, var, var1, ea_used, index, _);
+    reg_def_use_def_used(ea_def, var, ea_used, index) <--
+        delta reg_def_use_live_var_used(block_used, var, var1, ea_used, index, _),
+        reg_def_use_live_var_at_block_end(block, block_used, var),
+        reg_def_use_live_var_def(block, var1, var, ea_def);
 
-    reg_def_use_def_used(ea_def, var, next_ea_used, next_index) <--
+    // extra indexing
+    relation reg_def_use_live_var_used_eq(Address, Register, Address, OperandIndex);
+    reg_def_use_live_var_used_eq(next_used_block, var, next_ea_used, next_index) <--
         reg_def_use_live_var_used(next_used_block, var, var1, next_ea_used, next_index, _),
-        if var == var1,
+        if var == var1;
+
+    // reg_def_use_def_used(ea_def, var, next_ea_used, next_index) <--
+    //     reg_def_use_live_var_used_eq(next_used_block, var, next_ea_used, next_index),
+    //     reg_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
+    //     reg_def_use_def_used(ea_def, var, ea_used, _);
+    reg_def_use_def_used(ea_def, var, next_ea_used, next_index) <--
+        delta reg_def_use_live_var_used_eq(next_used_block, var, next_ea_used, next_index),
         reg_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
         reg_def_use_def_used(ea_def, var, ea_used, _);
+    reg_def_use_def_used(ea_def, var, next_ea_used, next_index) <--
+        delta reg_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
+        reg_def_use_live_var_used_eq(next_used_block, var, next_ea_used, next_index),
+        reg_def_use_def_used(ea_def, var, ea_used, _);
+    reg_def_use_def_used(ea_def, var, next_ea_used, next_index) <--
+        delta reg_def_use_def_used(ea_def, var, ea_used, _),
+        reg_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
+        reg_def_use_live_var_used_eq(next_used_block, var, next_ea_used, next_index);
 
     reg_def_use_def_used(ea_def, reg, ea_used, index) <--
         reg_def_use_return_val_used(_, callee, reg, ea_used, index),
@@ -922,10 +1003,18 @@ ascent_par! {
         !reg_def_use_flow_def(prev_block_end, var, block, _);
 
 
+    // reg_def_use_live_var_at_block_end(prev_block, block_used, var) <--
+    //     reg_def_use_live_var_at_block_end(block, block_used, var),
+    //     !reg_def_use_ref_in_block(block, var),
+    //     block_next(prev_block, _, block);
     reg_def_use_live_var_at_block_end(prev_block, block_used, var) <--
-        reg_def_use_live_var_at_block_end(block, block_used, var),
+        delta reg_def_use_live_var_at_block_end(block, block_used, var),
         !reg_def_use_ref_in_block(block, var),
         block_next(prev_block, _, block);
+    reg_def_use_live_var_at_block_end(prev_block, block_used, var) <--
+        delta block_next(prev_block, _, block),
+        reg_def_use_live_var_at_block_end(block, block_used, var),
+        !reg_def_use_ref_in_block(block, var);
 
     reg_def_use_live_var_at_prior_used(ea_used, block_used, var) <--
         reg_def_use_live_var_at_block_end(block, block_used, var),
@@ -959,15 +1048,38 @@ ascent_par! {
         loaded_section((*offset as Address), _, name);
 
     // .plan 1: (3,1,2,4), 2: (4,1,2,3)
+    // reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset) <--
+    //     reg_def_use_def_used(ea_def1, reg1, ea, _),
+    //     def_used_for_address(ea, reg_def, _),
+    //     arch_reg_reg_arithmetic_operation(ea, reg_def, reg1, reg2, mult, offset),
+    //     if reg1 != reg2,
+    //     if ea != ea_def1,
+    //     reg_def_use_def_used(ea_def2, reg2, ea, _),
+    //     if ea != ea_def2;
     reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset) <--
-        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        delta reg_def_use_def_used(ea_def1, reg1, ea, _),
         def_used_for_address(ea, reg_def, _),
         arch_reg_reg_arithmetic_operation(ea, reg_def, reg1, reg2, mult, offset),
         if reg1 != reg2,
         if ea != ea_def1,
         reg_def_use_def_used(ea_def2, reg2, ea, _),
         if ea != ea_def2;
-
+    reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset) <--
+        delta def_used_for_address(ea, reg_def, _),
+        arch_reg_reg_arithmetic_operation(ea, reg_def, reg1, reg2, mult, offset),
+        if reg1 != reg2,
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        if ea != ea_def1,
+        reg_def_use_def_used(ea_def2, reg2, ea, _),
+        if ea != ea_def2;
+    reg_reg_arithmetic_operation_defs(ea, reg_def, ea_def1, reg1, ea_def2, reg2, mult, offset) <--
+        delta reg_def_use_def_used(ea_def2, reg2, ea, _),
+        if ea != ea_def2,
+        arch_reg_reg_arithmetic_operation(ea, reg_def, reg1, reg2, mult, offset),
+        if reg1 != reg2,
+        def_used_for_address(ea, reg_def, _),
+        reg_def_use_def_used(ea_def1, reg1, ea, _),
+        if ea != ea_def1;
 
     relative_jump_table_entry_candidate(table_start, table_start, size, reference, (*reference + (unsafe {functor_data_unsigned(*table_start as Address, *size as size_t)} as Address) ), scale, 0) <--
         jump_table_start(_, size, table_start, reference, scale),
@@ -1252,26 +1364,63 @@ ascent_par! {
         def_used_for_address(ea, reg, _),
         value_reg_unsupported(ea, reg);
 
+    // value_reg(ea, reg, ea_from, "Unknown", immediate, base, (steps + 1)) <--
+    //     step_limit(step_limit),
+    //     value_reg(ea, reg, ea_from, "NONE", 0, base, steps),
+    //     if *steps <= (step_limit - 2),
+    //     value_reg_edge(ea, reg, ea, reg, 1, immediate),
+    //     if *immediate != 0;
     value_reg(ea, reg, ea_from, "Unknown", immediate, base, (steps + 1)) <--
+        delta value_reg(ea, reg, ea_from, "NONE", 0, base, steps),
         step_limit(step_limit),
-        value_reg(ea, reg, ea_from, "NONE", 0, base, steps),
         if *steps <= (step_limit - 2),
         value_reg_edge(ea, reg, ea, reg, 1, immediate),
         if *immediate != 0;
-
-    value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 1)) <--
+    value_reg(ea, reg, ea_from, "Unknown", immediate, base, (steps + 1)) <--
+        delta value_reg_edge(ea, reg, ea, reg1, 1, immediate),
+        if *immediate != 0,
+        if reg == reg1,
+        value_reg(ea, reg, ea_from, "NONE", 0, base, steps),
         step_limit(step_limit),
-        value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+        if *steps <= (step_limit - 2);
+
+    // value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 1)) <--
+    //     step_limit(step_limit),
+    //     value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+    //     if *steps <= (step_limit - 2),
+    //     value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
+    //     if ea1 > ea2;
+    value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 1)) <--
+        delta value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+        step_limit(step_limit),
         if *steps <= (step_limit - 2),
         value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
         if ea1 > ea2;
-
-    value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 5)) <--
-        step_limit(step_limit),
+    value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 1)) <--
+        delta value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
         value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+        if ea1 > ea2,
+        step_limit(step_limit),
+        if *steps <= (step_limit - 2);
+
+    // value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 5)) <--
+    //     step_limit(step_limit),
+    //     value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+    //     if *steps <= (step_limit - 6),
+    //     value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
+    //     if ea1 < ea2;
+    value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 5)) <--
+        delta value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+        step_limit(step_limit),
         if *steps <= (step_limit - 6),
         value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
         if ea1 < ea2;
+    value_reg(ea1, reg1, ea3, reg3, (multiplier * multiplier2), ((offset2 * multiplier) + offset), (steps + 5)) <--
+        delta value_reg_edge(ea1, reg1, ea2, reg2, multiplier, offset),
+        value_reg(ea2, reg2, ea3, reg3, multiplier2, offset2, steps),
+        if ea1 < ea2,
+        step_limit(step_limit),
+        if *steps <= (step_limit - 6);
 
     value_reg(ea, reg, ea, "NONE", 0, (*address as Number), 1) <--
         arch_return_reg(reg),
@@ -1372,10 +1521,10 @@ ascent_par! {
     value_reg_edge(ea_load, reg2, ea_prev, reg1, 1, 0) <--
         delta reg_def_use_def_used(ea_prev, reg1, ea_store, _),
         arch_memory_access("STORE", ea_store, _, _, reg1, reg_base_store, "NONE", _, stack_pos_store),
-        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load),
         let base_var = (*reg_base_store, *stack_pos_store),
-        let load_var = (*reg_base_load, *stack_pos_load),
-        stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _);
+        stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _),
+        let (reg_base_load, stack_pos_load) = load_var,
+        arch_memory_access("LOAD", ea_load, _, _, reg2, reg_base_load, "NONE", _, stack_pos_load);
     // value_reg_edge(ea_load, reg2, ea_prev, reg1, 1, 0) <--
     //     stack_def_use_def_used(ea_store, base_var, ea_load, load_var, _),
     //     let (reg_base_store, stack_pos_store) = base_var,
