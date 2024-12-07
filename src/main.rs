@@ -597,10 +597,21 @@ ascent_par! {
         if *offset != 0,
         got_reference_pointer(got);
 
+    jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
+        pc_relative_operand(ea, 1, table_start_addr),
+        data_access(ea, _, _, _, _, _, _, size),
+        def_used_for_address(ea, _, "Jump"),
+        reg_def_use_def_used(ea, reg1, ea_add, _),
+        reg_def_use_def_used(ea2, reg2, ea_add, _),
+        take_address(ea2, table_start_addr),
+        arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+        data_segment(beg, end),
+        if table_start_addr >= beg,
+        if table_start_addr <= end;
     // jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
+    //     delta def_used_for_address(ea, _, "Jump"),
     //     pc_relative_operand(ea, 1, table_start_addr),
     //     data_access(ea, _, _, _, _, _, _, size),
-    //     def_used_for_address(ea, _, "Jump"),
     //     reg_def_use_def_used(ea, reg1, ea_add, _),
     //     reg_def_use_def_used(ea2, reg2, ea_add, _),
     //     take_address(ea2, table_start_addr),
@@ -608,39 +619,28 @@ ascent_par! {
     //     data_segment(beg, end),
     //     if table_start_addr >= beg,
     //     if table_start_addr <= end;
-    jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
-        delta def_used_for_address(ea, _, "Jump"),
-        pc_relative_operand(ea, 1, table_start_addr),
-        data_access(ea, _, _, _, _, _, _, size),
-        reg_def_use_def_used(ea, reg1, ea_add, _),
-        reg_def_use_def_used(ea2, reg2, ea_add, _),
-        take_address(ea2, table_start_addr),
-        arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
-        data_segment(beg, end),
-        if table_start_addr >= beg,
-        if table_start_addr <= end;
-    jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
-        delta reg_def_use_def_used(ea, reg1, ea_add, _),
-        def_used_for_address(ea, _, "Jump"),
-        arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
-        reg_def_use_def_used(ea2, reg2, ea_add, _),
-        pc_relative_operand(ea, 1, table_start_addr),
-        data_access(ea, _, _, _, _, _, _, size),
-        take_address(ea2, table_start_addr),
-        data_segment(beg, end),
-        if table_start_addr >= beg,
-        if table_start_addr <= end;
-    jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
-        delta reg_def_use_def_used(ea2, reg2, ea_add, _),
-        arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
-        reg_def_use_def_used(ea, reg1, ea_add, _),
-        pc_relative_operand(ea, 1, table_start_addr),
-        take_address(ea2, table_start_addr),
-        data_access(ea, _, _, _, _, _, _, size),
-        def_used_for_address(ea, _, "Jump"),
-        data_segment(beg, end),
-        if table_start_addr >= beg,
-        if table_start_addr <= end;
+    // jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
+    //     delta reg_def_use_def_used(ea, reg1, ea_add, _),
+    //     def_used_for_address(ea, _, "Jump"),
+    //     arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+    //     reg_def_use_def_used(ea2, reg2, ea_add, _),
+    //     pc_relative_operand(ea, 1, table_start_addr),
+    //     data_access(ea, _, _, _, _, _, _, size),
+    //     take_address(ea2, table_start_addr),
+    //     data_segment(beg, end),
+    //     if table_start_addr >= beg,
+    //     if table_start_addr <= end;
+    // jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
+    //     delta reg_def_use_def_used(ea2, reg2, ea_add, _),
+    //     arch_reg_reg_arithmetic_operation(ea_add, _, reg2, reg1, 1, 0),
+    //     reg_def_use_def_used(ea, reg1, ea_add, _),
+    //     pc_relative_operand(ea, 1, table_start_addr),
+    //     take_address(ea2, table_start_addr),
+    //     data_access(ea, _, _, _, _, _, _, size),
+    //     def_used_for_address(ea, _, "Jump"),
+    //     data_segment(beg, end),
+    //     if table_start_addr >= beg,
+    //     if table_start_addr <= end;
 
     jump_table_element_access(ea, size, table_start_addr, "NONE") <-- 
         pc_relative_operand(ea, 1, table_start_addr),
@@ -1083,19 +1083,17 @@ ascent_par! {
 
     relative_jump_table_entry_candidate(table_start, table_start, size, reference, (*reference + (unsafe {functor_data_unsigned(*table_start as Address, *size as size_t)} as Address) ), scale, 0) <--
         jump_table_start(_, size, table_start, reference, scale),
-        jump_table_signed(table_start, inlined_signed_1118),
-        if *inlined_signed_1118 == 0,
+        jump_table_signed(table_start, 0),
         if unsafe {functor_data_valid(*table_start as Address, *size as size_t) } == 1,
+        let tmp_318 = *reference + unsafe{functor_data_unsigned(*table_start, *size as size_t)} as Address,
         code_in_block(tmp_318, _),
         loaded_section(section_start, section_end, _),
         if table_start >= section_start,
-        if table_start < section_end,
-        if *tmp_318 == (*reference + unsafe{functor_data_unsigned(*table_start, *size as size_t)} as Address );
+        if table_start < section_end;
 
     relative_jump_table_entry_candidate(table_start, table_start, size, reference, dest, scale, 0) <--
         jump_table_start(_, size, table_start, reference, scale),
-        jump_table_signed(table_start, inlined_signed_1119),
-        if *inlined_signed_1119 == 0,
+        jump_table_signed(table_start, 0),
         if unsafe { functor_data_valid(*table_start, *size as size_t) } == 1,
         is_padding(inlined_dest_1119),
         after_end(inlined_dest_1119, inlined_end_1119),
@@ -1112,11 +1110,11 @@ ascent_par! {
         jump_table_signed(table_start, inlined_signed_1120),
         if *inlined_signed_1120 == 1,
         if unsafe {functor_data_valid(*table_start, *size as size_t) } == 1,
+        let tmp_319 = ((*reference as Number) + ((*scale as Number) * unsafe {functor_data_signed(*table_start, *size as size_t)} )) as Address,
         code_in_block(tmp_319, _),
         loaded_section(section_start, section_end, _),
         if table_start >= section_start,
-        if table_start < section_end,
-        if *tmp_319 == (((*reference as Number) + ((*scale as Number) * unsafe {functor_data_signed(*table_start, *size as size_t)} )) as Address);
+        if table_start < section_end;
 
     relative_jump_table_entry_candidate(table_start, table_start, size, reference, dest, scale, 0) <--
         jump_table_start(_, size, table_start, reference, scale),
@@ -1133,7 +1131,7 @@ ascent_par! {
         if table_start >= section_start,
         if table_start < section_end;
 
-        relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, (*reference + unsafe { functor_data_unsigned(last_ea + size, *size as size_t) } as Address), scale, offset) <--
+    relative_jump_table_entry_candidate((last_ea + size), table_start, size, reference, (*reference + unsafe { functor_data_unsigned(last_ea + size, *size as size_t) } as Address), scale, offset) <--
         relative_jump_table_entry_candidate(last_ea, table_start, size, reference, _, scale, offset),
         jump_table_max(table_start, table_end),
         if *table_end >= (last_ea + size),
@@ -1141,8 +1139,7 @@ ascent_par! {
         data_segment(beg_data, end_data),
         if beg_data <= table_start,
         if ((last_ea + size) + size) <= *end_data,
-        jump_table_signed(table_start, inlined_signed_1122),
-        if *inlined_signed_1122 == 0,
+        jump_table_signed(table_start, 0),
         if unsafe { functor_data_valid(last_ea + size, *size as size_t) } == 1,
         let _tmp_320 = *reference + unsafe { functor_data_unsigned(last_ea + size, *size as size_t) } as Address,
         code_in_block(_tmp_320, _);
@@ -1155,14 +1152,12 @@ ascent_par! {
         data_segment(beg_data, end_data),
         if beg_data <= table_start,
         if ((last_ea + size) + size) <= *end_data,
-        jump_table_signed(table_start, inlined_signed_1123),
-        if *inlined_signed_1123 == 0,
+        jump_table_signed(table_start, 0),
         if unsafe { functor_data_valid(last_ea + size, *size as size_t) } == 1,
+        let inlined_dest_1123 = reference + unsafe { functor_data_unsigned(last_ea + size, *size as size_t) } as Address,
         is_padding(inlined_dest_1123),
         after_end(inlined_dest_1123, inlined_end_1123),
         after_end(dest, inlined_end_1123),
-        if *inlined_dest_1123 == (reference + unsafe { functor_data_unsigned(last_ea + size, *size as size_t) } as Address),
-
         !is_padding(dest),
         code_in_block(dest, _);
 
@@ -1174,8 +1169,7 @@ ascent_par! {
         data_segment(beg_data, end_data),
         if beg_data <= table_start,
         if ((last_ea + size) + size) <= *end_data,
-        jump_table_signed(table_start, inlined_signed_1124),
-        if *inlined_signed_1124 == 1,
+        jump_table_signed(table_start, 1),
         if unsafe { functor_data_valid(last_ea + size, *size as size_t) } == 1,
         let _tmp_321 = ((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed(last_ea + size, *size as size_t) })) as Address,
         code_in_block(_tmp_321, _);
@@ -1188,8 +1182,7 @@ ascent_par! {
         data_segment(beg_data, end_data),
         if beg_data <= table_start,
         if ((last_ea + size) + size) <= *end_data,
-        jump_table_signed(table_start, inlined_signed_1125),
-        if *inlined_signed_1125 == 1,
+        jump_table_signed(table_start, 1),
         if unsafe { functor_data_valid(last_ea + size, *size as size_t) } == 1,
         let inlined_dest_1125 = ((*reference as Number) + ((*scale as Number) * unsafe { functor_data_signed(last_ea + size, *size as size_t) })) as Address,
         is_padding(inlined_dest_1125),
@@ -1228,10 +1221,22 @@ ascent_par! {
         code_in_block(ea, block),
         stack_def_use_def(ea_def, def_var);
 
+    // stack_def_use_def_used(ea_def, var_def, next_ea_used, var_used, next_index) <--
+    //     stack_def_use_live_var_used(next_used_block, var, var_used, next_ea_used, next_index, _),
+    //     stack_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
+    //     stack_def_use_def_used(ea_def, var_def, ea_used, var, _);
     stack_def_use_def_used(ea_def, var_def, next_ea_used, var_used, next_index) <--
-        stack_def_use_live_var_used(next_used_block, var, var_used, next_ea_used, next_index, _),
+        delta stack_def_use_live_var_used(next_used_block, var, var_used, next_ea_used, next_index, _),
         stack_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
         stack_def_use_def_used(ea_def, var_def, ea_used, var, _);
+    stack_def_use_def_used(ea_def, var_def, next_ea_used, var_used, next_index) <--
+        delta stack_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
+        stack_def_use_live_var_used(next_used_block, var, var_used, next_ea_used, next_index, _),
+        stack_def_use_def_used(ea_def, var_def, ea_used, var, _);
+    stack_def_use_def_used(ea_def, var_def, next_ea_used, var_used, next_index) <--
+        delta stack_def_use_def_used(ea_def, var_def, ea_used, var, _),
+        stack_def_use_live_var_at_prior_used(ea_used, next_used_block, var),
+        stack_def_use_live_var_used(next_used_block, var, var_used, next_ea_used, next_index, _);
 
     stack_def_use_live_var_at_block_end(prev_block, block_used, stack_var) <--
         delta block_next(prev_block, _, block),
@@ -2086,11 +2091,15 @@ fn main() {
         .map(|(a,)| (leak(a),))
         .collect();
 
-    program.step_limit_small = ascent::boxcar::vec![(3 as u64,)];
+    program.step_limit_small = vec![(3 as u64,)].into_iter().collect();
 
 
     println!("Finished reading files!");
+    // time to run the program
+    let start = std::time::Instant::now();
     program.run();
+    let end = std::time::Instant::now();
+    println!("Time taken: {:?}", (end - start).as_secs_f32());
 
     println!("{}", program.scc_times_summary());
     println!("{}", program.relation_sizes_summary());
