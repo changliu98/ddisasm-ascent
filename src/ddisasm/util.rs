@@ -8,7 +8,7 @@ where
 {
     // read csv file replace all hex values with decimal
 
-    println!("Reading CSV file: {}", path);
+    println!("Reading csv file: {}", path);
     // check if file exists
     let path_replace = if !std::path::Path::new(path).exists() {
         // replace the .csv with .facts

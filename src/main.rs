@@ -1,3 +1,5 @@
+use ddisasm_ascent::ddisasm::ast::{read_cfg, DatalogCFG};
+
 
 
 
@@ -17,6 +19,8 @@ fn main() {
     //     .arg(&binary_path)
     //     .output()
     //     .expect("failed to execute process");
-
+    let mut datalog_cfg = DatalogCFG::default();
+    
+    read_cfg(&mut datalog_cfg, "sample")
 
 }
