@@ -14,26 +14,19 @@ ascent!{
     relation lift(Address, Instruction);
     lift(addr, ins) <-- 
         do_lift(addr),
-        cfg.instruction(addr, size, prefix, opcode, op1, op2, op3, op4, immOffset, displacementOffset),
+        cfg.instruction(addr, size, prefix, opcode, op1, op2, op3, op4, imm_offset, displacement_offset),
         let operands = [*op1, *op2, *op3, *op4],
         let ins = Instruction {
-            // ea: Address,
-            // size: u64,
-            // prefix: Symbol,
-            // opcode: Symbol,
-            // operands: [OperandCode; 4],
-            // imm_offset: u64,
-            // displacement_offset: u64,
-            ea:*addr, size:*size, prefix:prefix, opcode:opcode, operands:operands, imm_offset:*immOffset, 
-            displacement_offset:*displacementOffset
+            ea:*addr, size:*size, prefix:prefix, opcode:opcode, operands:operands, imm_offset:*imm_offset, 
+            displacement_offset:*displacement_offset
         };
 }
 
-struct Foo(&u32);
 
 pub fn lift_instruction(addr:Address, db:& DatalogCFG) {
-    let dbptr = Rc::new(RefCell::new(db));
-    let mut liftdb = LiftInstruction::default();
-    liftdb.cfg = dbptr;
+    
+    let mut inst = LiftInstruction::default();
+    inst.do_lift = vec![(addr,)];
+    inst.run(&db);
 
 }

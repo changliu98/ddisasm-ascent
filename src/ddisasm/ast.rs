@@ -94,46 +94,6 @@ ascent! {
         Address, Address, Symbol, Symbol,  Symbol   
     );
 
-    relation node(Address);
-    relation start_node(Address);
-    relation end_node(Address);
-    relation edge(Address, Address);
-
-    lattice lifted_graph_head(Set<Ptr<GraphNode>>);
-    relation outages(Address, usize);
-
-
-    node(x) <-- cfg(x, _,  _, _, _);
-    node(y) <-- cfg(_, y,  _, _, _);
-
-    start_node(x) <-- node(x), !cfg(_, x, _, _, _);
-    end_node(x) <-- node(x), !edge(x, _);
-    outages(x, n) <-- node(x), agg n = count() in edge(x, _);
-
-
-    relation do_lift(Address);
-    lattice lift(Address, Set<Ptr<GraphNode>>);
-
-    start_node(x) <-- do_lift(x);
-
-    do_lift(y) <-- do_lift(x), edge(x, y);
-    
-    lift(x, Set::singleton(new_node)) <--
-        do_lift(x),
-        edge(x, y), end_node(y),
-        let new_node = ptr!(GraphNode { id: *x, ..Default::default() });
-
-    lift(x, Set::singleton(new_node)) <--
-        do_lift(x),
-        edge(x, y), lift(y, y_nodes), outages(y, n),
-        if &y_nodes.0.len() == n,
-        let new_node = ptr!(GraphNode { id: *x, next: y_nodes.0.clone() });
-
-    lifted_graph_head(Set::singleton(new_node)) <-- start_node(x), lift(x, next),
-        let new_node = ptr!(GraphNode { id: *x, next: next.0.clone() });
-    
-
-
 
 }
 

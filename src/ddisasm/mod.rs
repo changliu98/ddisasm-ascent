@@ -3,3 +3,4 @@
 pub mod ast;
 pub mod util;
 pub mod instruction;
+pub mod cfg;
