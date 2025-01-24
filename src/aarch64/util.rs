@@ -72,10 +72,9 @@ pub mod automaton {
         }
     }
 
-    // ascent version
     ascent! {
-        pub struct ImmAutomaton;
-    
+        struct AutomatonTable;
+
         relation start(State);
         start(State::SA);
 
@@ -104,27 +103,59 @@ pub mod automaton {
         accepting(State::SF);
         accepting(State::SG);
 
+        index next (0, 1);
+        index accepting ();
+    }
+
+    // ascent version
+    ascent! {
+        pub struct ImmAutomaton;
+        extern database AutomatonTable auto;
+
+        relation next(State, bool, State) in auto;
+        relation accepting(State) in auto;
+
         // memorize the result
         relation valid_imm(i64);
-        valid_imm(i) <-- check(i), do_run(0, s, x); 
+        valid_imm(i) <--
+            check(i), auto.accepting(s),
+            do_run(0, s, x); 
 
         do_run(l, s1, h) <--
             do_run(l, s, x), if *l > 0,
+            // let _ = println!("do_run: {:?}, {:?}, {:?}", l, s, x),
             let b = (x & 1) != 0,
-            next(s, b, s1),
+            auto.next(s, b, s1),
             let h = x >> 1;
 
         // intermediate, need clean every time
         relation do_run(usize, State, i64);
-        relation run(usize, State, i64);
 
         // need clear every time
         // input relation
         relation check(i64);
         // output relation
         relation pass();
+        await do_run;
+        await check;
+        yield pass;
 
         pass() <-- check(x), valid_imm(x); 
+    }
+
+    #[test]
+    fn test_imm_automaton() {
+        let x = 0b11111111;
+        let mut auto = AutomatonTable::default();
+        auto.run();
+        let mut validator = ImmAutomaton {
+            check: vec![(x,)],
+            do_run: vec![(8, State::SA, x)],
+            ..ImmAutomaton::default()
+        };
+        validator.run(&auto);
+        let res = validator.pass.len() == 1;
+        assert!(res);
     }
 }
 
