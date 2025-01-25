@@ -5,16 +5,14 @@ use crate::ast::{Signature, Typ};
 use crate::x86::reg::Mreg;
 use crate::ast::{Ident, MemoryChunk, ExternalFunction, BuiltinArg, BuiltinRes};
 use crate::x86::op::{Addressing, Ptrofs, Operation, Condition};
-
-use super::asm::{Ireg, Preg, Freg};
-
+use crate::x86::mach::Function as MachFunction;
+use crate::x86::mach::Instruction as MachInstruction;
 
 pub type Label = usize;
 
 ascent! {
     pub struct MachO;
 
-    relation mach_instruction(usize);
 
     relation mach_function_next_instruction(usize, usize);
     // id + macho instruction
@@ -43,62 +41,52 @@ ascent! {
     // seems in MachO each program is a function
     relation program_entry(usize);
     relation func_in_program(usize, usize);
-    relation ireg_of(Mreg);
-}
 
+    relation transl_instr(MachFunction, MachInstruction, bool, Vec<MachInstruction>);
 
-ascent! {
-    pub struct Asm;
+    // Definition transl_instr (f: Mach.function) (i: Mach.instruction)
+    // (ax_is_parent: bool) (k: code) :=
+    //     match i with
+    //     | Mgetstack ofs ty dst =>
+    //     loadind RSP ofs ty dst k
+    //     | Msetstack src ofs ty =>
+    //     storeind src RSP ofs ty k
+    //     | Mgetparam ofs ty dst =>
+    //     if ax_is_parent then
+    //     loadind RAX ofs ty dst k
+    //     else
+    //     (do k1 <- loadind RAX ofs ty dst k;
+    //     loadind RSP f.(fn_link_ofs) Tptr AX k1)
+    //     | Mop op args res =>
+    //     transl_op op args res k
+    //     | Mload chunk addr args dst =>
+    //     transl_load chunk addr args dst k
+    //     | Mstore chunk addr args src =>
+    //     transl_store chunk addr args src k
+    //     | Mcall sig (inl reg) =>
+    //     do r <- ireg_of reg; OK (Pcall_r r sig :: k)
+    //     | Mcall sig (inr symb) =>
+    //     OK (Pcall_s symb sig :: k)
+    //     | Mtailcall sig (inl reg) =>
+    //     do r <- ireg_of reg;
+    //     OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) ::
+    //     Pjmp_r r sig :: k)
+    //     | Mtailcall sig (inr symb) =>
+    //     OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) ::
+    //     Pjmp_s symb sig :: k)
+    //     | Mlabel lbl =>
+    //     OK(Plabel lbl :: k)
+    //     | Mgoto lbl =>
+    //     OK(Pjmp_l lbl :: k)
+    //     | Mcond cond args lbl =>
+    //     transl_cond cond args (mk_jcc (testcond_for_condition cond) lbl k)
+    //     | Mjumptable arg tbl =>
+    //     do r <- ireg_of arg; OK (Pjmptbl r tbl :: k)
+    //     | Mreturn =>
+    //     OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) ::
+    //     Pret :: k)
+    //     | Mbuiltin ef args res =>
+    //     OK (Pbuiltin ef (List.map (map_builtin_arg preg_of) args) (map_builtin_res preg_of res) :: k)
+    //     end.
 
-    extern database MachO mach_o;
-
-    relation ireg_of(Mreg, Ireg);
-    relation preg_of(Mreg, Preg);
-    relation freg_of(Mreg, Freg);
-
-    preg_of(Mreg::AX, Preg::Ir(Ireg::RAX));
-    preg_of(Mreg::BX, Preg::Ir(Ireg::RBX));
-    preg_of(Mreg::CX, Preg::Ir(Ireg::RCX));
-    preg_of(Mreg::DX, Preg::Ir(Ireg::RDX));
-    preg_of(Mreg::SI, Preg::Ir(Ireg::RSI));
-    preg_of(Mreg::DI, Preg::Ir(Ireg::RDI));
-    preg_of(Mreg::BP, Preg::Ir(Ireg::RBP));
-    preg_of(Mreg::R8, Preg::Ir(Ireg::R8));
-    preg_of(Mreg::R9, Preg::Ir(Ireg::R9));
-    preg_of(Mreg::R10, Preg::Ir(Ireg::R10));
-    preg_of(Mreg::R11, Preg::Ir(Ireg::R11));
-    preg_of(Mreg::R12, Preg::Ir(Ireg::R12));
-    preg_of(Mreg::R13, Preg::Ir(Ireg::R13));
-    preg_of(Mreg::R14, Preg::Ir(Ireg::R14));
-    preg_of(Mreg::R15, Preg::Ir(Ireg::R15));
-    preg_of(Mreg::X0, Preg::Fr(Freg::XMM0));
-    preg_of(Mreg::X1, Preg::Fr(Freg::XMM1));
-    preg_of(Mreg::X2, Preg::Fr(Freg::XMM2));
-    preg_of(Mreg::X3, Preg::Fr(Freg::XMM3));
-    preg_of(Mreg::X4, Preg::Fr(Freg::XMM4));
-    preg_of(Mreg::X5, Preg::Fr(Freg::XMM5));
-    preg_of(Mreg::X6, Preg::Fr(Freg::XMM6));
-    preg_of(Mreg::X7, Preg::Fr(Freg::XMM7));
-    preg_of(Mreg::X8, Preg::Fr(Freg::XMM8));
-    preg_of(Mreg::X9, Preg::Fr(Freg::XMM9));
-    preg_of(Mreg::X10, Preg::Fr(Freg::XMM10));
-    preg_of(Mreg::X11, Preg::Fr(Freg::XMM11));
-    preg_of(Mreg::X12, Preg::Fr(Freg::XMM12));
-    preg_of(Mreg::X13, Preg::Fr(Freg::XMM13));
-    preg_of(Mreg::X14, Preg::Fr(Freg::XMM14));
-    preg_of(Mreg::X15, Preg::Fr(Freg::XMM15));
-    preg_of(Mreg::FP0, Preg::ST0);
-
-
-
-
-    ireg_of(r, mr) <-- preg_of(r, ?Preg::Ir(mr));
-    freg_of(r, fr) <-- preg_of(r, ?Preg::Fr(fr));
-
-    relation mk_mov(Preg, Preg, usize);
-
-    relation tranl_op(Operation, Vec<Mreg>, Mreg, usize);
-
-
-    // relation 
 }
