@@ -4,6 +4,9 @@ use super::reg::Mreg;
 
 pub type Ptrofs = u64;
 
+type Z = i64;
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Condition {
     Ceq,
@@ -14,16 +17,16 @@ pub enum Condition {
     Cge,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Addressing {
-    Aindexed(i64),
-    Aindexed2(i64),
-    Ascaled(i64, i64),
-    Aindexed2scaled(i64, i64),
+    Aindexed(Z),
+    Aindexed2(Z),
+    Ascaled(Z, Z),
+    Aindexed2scaled(Z, Z),
     Aglobal(Ident, Ptrofs),
     Abased(Ident, Ptrofs),
-    Abasedscaled(i64, Ident, Ptrofs),
-    Ainstack(Ptrofs),
+    Abasedscaled(Z, Ident, Ptrofs),
+    Ainstack(Ptrofs)
 }
 
 // impl hash for f64 and f32

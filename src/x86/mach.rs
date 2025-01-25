@@ -1,23 +1,48 @@
-use std::string;
+use std::{any, string};
+use csv;
 use crate::ast::{Signature, Typ};
-use crate::x86::op::Ptrofs;
+use crate::x86::op::{Addressing, Ptrofs, Operation, Condition, Ident, Z};
+use std::any::Any;
 
-// Inductive instruction: Type :=
-//   | Mgetstack: ptrofs -> typ -> mreg -> instruction
-//   | Msetstack: mreg -> ptrofs -> typ -> instruction
-//   | Mgetparam: ptrofs -> typ -> mreg -> instruction
-//   | Mop: operation -> list mreg -> mreg -> instruction
-//   | Mload: memory_chunk -> addressing -> list mreg -> mreg -> instruction
-//   | Mstore: memory_chunk -> addressing -> list mreg -> mreg -> instruction
-//   | Mcall: signature -> mreg + ident -> instruction
-//   | Mtailcall: signature -> mreg + ident -> instruction
-//   | Mbuiltin: external_function -> list (builtin_arg mreg) -> builtin_res mreg -> instruction
-//   | Mlabel: label -> instruction
-//   | Mgoto: label -> instruction
-//   | Mcond: condition -> list mreg -> label -> instruction
-//   | Mjumptable: mreg -> list label -> instruction
-//   | Mreturn: instruction.
+pub type Positive = usize;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Plus {
+    pub x: Mreg,
+    pub y: Ident,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Mreg {
+    // (** Allocatable integer regs *)
+    R0, R1, R2, R3, R4, R5, R6, R7,
+    R8, R9, R10, R11, R12, R13, R14, R15,
+    R17, R19, R20, R21, R22, R23,
+    R24, R25, R26, R27, R28, R29,
+    //   (** Allocatable floating-point regs *)
+    F0, F1, F2, F3, F4, F5, F6, F7,
+    F8, F9, F10, F11, F12, F13, F14, F15,
+    F16, F17, F18, F19, F20, F21, F22, F23,
+    F24, F25, F26, F27, F28, F29, F30, F31
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ExternalFunction{
+    EF_external(String, Signature),
+    EF_builtin(String, Signature),
+    EF_runtime(String, Signature),
+    EF_vload(MemoryChunk),
+    EF_vstore(MemoryChunk),
+    EF_malloc,
+    EF_free,
+    EF_memcpy(Z, Z),
+    EF_annot(Positive, String, Vec<Typ>),
+    EF_annot_val(Positive, String, Typ),
+    EF_inline_asm(String, Signature, Vec<String>),
+    EF_debug(Positive, Ident, Vec<Typ>)
+}
+
+// backend/Mach.v
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Instruction{
     Mgetstack(Ptrofs, Typ, Mreg),
@@ -26,8 +51,8 @@ pub enum Instruction{
     Mop(Operation, Vec<Mreg>, Mreg),
     Mload(MemoryChunk, Addressing, Vec<Mreg>, Mreg),
     Mstore(MemoryChunk, Addressing, Vec<Mreg>, Mreg),
-    Mcall(Signature, Either<Mreg, Ident>),
-    Mtailcall(Signature, Either<Mreg, Ident>),
+    Mcall(Signature, Plus),
+    Mtailcall(Signature, Plus),
     Mbuiltin(ExternalFunction, Vec<BuiltinArg<Mreg>>, BuiltinRes<Mreg>),
     Mlabel(Label),
     Mgoto(Label),
@@ -53,14 +78,22 @@ pub enum OPCode{
     Mreturn
 }
 
-// Record function: Type := mkfunction
-//   { fn_sig: signature;
-//     fn_code: code;
-//     fn_stacksize: Z;
-//     fn_link_ofs: ptrofs;
-//     fn_retaddr_ofs: ptrofs }.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum MemoryChunk{
+    Mbool,
+    Mint8signed,
+    Mint8unsigned,
+    Mint16signed,
+    Mint16unsigned,
+    Mint32,
+    Mint64,
+    Mfloat32,
+    Mfloat64,
+    Many32,
+    Many64
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Function{
     fn_sig: Signature,
     fn_code: Vec<Instruction>,
@@ -68,6 +101,36 @@ pub struct Function{
     fn_link_ofs: Ptrofs,
     fn_retaddr_ofs: Ptrofs
 }
+
+
+fn name_of_chunk(chunk: MemoryChunk) -> &'static str {
+    match chunk {
+        MemoryChunk::Mbool => "bool",
+        MemoryChunk::Mint8signed => "int8s",
+        MemoryChunk::Mint8unsigned => "int8u",
+        MemoryChunk::Mint16signed => "int16s",
+        MemoryChunk::Mint16unsigned => "int16u",
+        MemoryChunk::Mint32 => "int32",
+        MemoryChunk::Mint64 => "int64",
+        MemoryChunk::Mfloat32 => "float32",
+        MemoryChunk::Mfloat64 => "float64",
+        MemoryChunk::Many32 => "any32",
+        MemoryChunk::Many64 => "any64"
+    }
+}
+
+// Inductive addressing: Type :=
+//   | Aindexed: Z -> addressing       (**r Address is [r1 + offset] *)
+//   | Aindexed2: Z -> addressing      (**r Address is [r1 + r2 + offset] *)
+//   | Ascaled: Z -> Z -> addressing   (**r Address is [r1 * scale + offset] *)
+//   | Aindexed2scaled: Z -> Z -> addressing  (**r Address is [r1 + r2 * scale + offset] *)
+//   | Aglobal: ident -> ptrofs -> addressing (**r Address is [symbol + offset] *)
+//   | Abased: ident -> ptrofs -> addressing  (**r Address is [symbol + offset + r1] *)
+//   | Abasedscaled: Z -> ident -> ptrofs -> addressing  (**r Address is [symbol + offset + r1 * scale] *)
+//   | Ainstack: ptrofs -> addressing. (**r Address is [stack_pointer + offset] *)
+
+
+
 
 fn load_mach_from_csv(file: &str) -> Vec<Function> {
     let mut rdr = csv::Reader::from_path(file).unwrap();
