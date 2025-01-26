@@ -1,10 +1,8 @@
-use crate::ast::{Ident, Typ};
+use crate::ast::{Ident, Typ, Z};
 
 use super::reg::Mreg;
 
 pub type Ptrofs = u64;
-
-type Z = i64;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

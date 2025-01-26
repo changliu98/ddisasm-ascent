@@ -1,10 +1,6 @@
-use std::{any, string};
 use csv;
-use crate::ast::{Signature, Typ};
-use crate::x86::op::{Addressing, Ptrofs, Operation, Condition, Ident, Z};
-use std::any::Any;
-
-pub type Positive = usize;
+use crate::ast::{Signature, Typ, Ident, Z, BuiltinArg, BuiltinRes, Positive, ExternalFunction};
+use crate::x86::op::{Addressing, Ptrofs, Operation, Condition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Plus {
@@ -26,21 +22,7 @@ pub enum Mreg {
     F24, F25, F26, F27, F28, F29, F30, F31
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ExternalFunction{
-    EF_external(String, Signature),
-    EF_builtin(String, Signature),
-    EF_runtime(String, Signature),
-    EF_vload(MemoryChunk),
-    EF_vstore(MemoryChunk),
-    EF_malloc,
-    EF_free,
-    EF_memcpy(Z, Z),
-    EF_annot(Positive, String, Vec<Typ>),
-    EF_annot_val(Positive, String, Typ),
-    EF_inline_asm(String, Signature, Vec<String>),
-    EF_debug(Positive, Ident, Vec<Typ>)
-}
+pub type Label = Positive;
 
 // backend/Mach.v
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -119,48 +101,11 @@ fn name_of_chunk(chunk: MemoryChunk) -> &'static str {
     }
 }
 
-// Inductive addressing: Type :=
-//   | Aindexed: Z -> addressing       (**r Address is [r1 + offset] *)
-//   | Aindexed2: Z -> addressing      (**r Address is [r1 + r2 + offset] *)
-//   | Ascaled: Z -> Z -> addressing   (**r Address is [r1 * scale + offset] *)
-//   | Aindexed2scaled: Z -> Z -> addressing  (**r Address is [r1 + r2 * scale + offset] *)
-//   | Aglobal: ident -> ptrofs -> addressing (**r Address is [symbol + offset] *)
-//   | Abased: ident -> ptrofs -> addressing  (**r Address is [symbol + offset + r1] *)
-//   | Abasedscaled: Z -> ident -> ptrofs -> addressing  (**r Address is [symbol + offset + r1 * scale] *)
-//   | Ainstack: ptrofs -> addressing. (**r Address is [stack_pointer + offset] *)
 
-
-
-
-fn load_mach_from_csv(file: &str) -> Vec<Function> {
-    let mut rdr = csv::Reader::from_path(file).unwrap();
-    let mut mach = Vec::new();
-    // CSV format is as follows:
-    // fn_sig, instruction opcaode, arg0, arg1, arg2
-    for result in rdr.records() {
-        let record = result.unwrap();
-        let fn_sig = record[0].parse::<Signature>().unwrap();
-        let opcode = record[1].parse::<OPCode>().unwrap();
-        let arg0 = record[2].parse::<String>().unwrap();
-        let arg1 = record[3].parse::<String>().unwrap();
-        let arg2 = record[4].parse::<String>().unwrap();
-        let instr = match opcode {
-            OPCode::Mgetstack => Instruction::Mgetstack(arg0, arg1, arg2),
-            OPCode::Msetstack => Instruction::Msetstack(arg0, arg1, arg2),
-            OPCode::Mgetparam => Instruction::Mgetparam(arg0, arg1, arg2),
-            OPCode::Mop => Instruction::Mop(arg0, arg1, arg2),
-            OPCode::Mload => Instruction::Mload(arg0, arg1, arg2),
-            OPCode::Mstore => Instruction::Mstore(arg0, arg1, arg2),
-            OPCode::Mcall => Instruction::Mcall(arg0, arg1),
-            OPCode::Mtailcall => Instruction::Mtailcall(arg0, arg1),
-            OPCode::Mbuiltin => Instruction::Mbuiltin(arg0, arg1, arg2),
-            OPCode::Mlabel => Instruction::Mlabel(arg0),
-            OPCode::Mgoto => Instruction::Mgoto(arg0),
-            OPCode::Mcond => Instruction::Mcond(arg0, arg1, arg2),
-            OPCode::Mjumptable => Instruction::Mjumptable(arg0, arg1),
-            OPCode::Mreturn => Instruction::Mreturn
-        };
-        mach.push(Function{fn_sig, fn_code: vec![instr], fn_stacksize: 0, fn_link_ofs: 0, fn_retaddr_ofs: 0});
-    }
-    mach
+fn mkfunction(fn_sig: Signature, 
+    fn_code: Vec<Instruction>, 
+    fn_stacksize: u64, 
+    fn_link_ofs: Ptrofs, 
+    fn_retaddr_ofs: Ptrofs) -> Function {
+    Function{fn_sig, fn_code, fn_stacksize, fn_link_ofs, fn_retaddr_ofs}
 }
