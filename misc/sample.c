@@ -23,6 +23,17 @@ void enqueueTask(int id, const char* description, int duration) {
         return;
     }
 
+    // # make a while loop here
+
+    int i = front;
+    while (i != rear) {
+        if (taskIds[i] == id) {
+            printf("Task #%d already exists!\n", id);
+            return;
+        }
+        i = (i + 1) % MAX_TASKS;
+    }
+
     rear = (rear + 1) % MAX_TASKS;
     taskIds[rear] = id;
     snprintf(taskDescriptions[rear], BUFFER_SIZE, "%s", description);
