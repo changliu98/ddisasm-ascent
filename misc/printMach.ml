@@ -11,7 +11,6 @@
 (* *********************************************************************)
 
 (** Pretty-printer for Mach code *)
-(* Modified to output states *)
 
 open Printf
 open Camlcoq
@@ -269,20 +268,6 @@ let string_of_external_function = function
 | EF_inline_asm (text, sg, clobbers) -> Printf.sprintf "EF_inline_asm(%s, %s, [%s])" (string_of_char_list text) (string_of_signature sg) (String.concat ", " (List.map (fun x -> Obj.magic x) clobbers))
 | EF_debug (kind, text, targs) -> Printf.sprintf "EF_debug(%s, %s, [%s])" (string_of_positive kind) (Obj.magic text) (String.concat ", " (List.map (fun x -> Obj.magic x) targs))
 
-(* 
-Inductive builtin_arg (A: Type) : Type :=
-  | BA (x: A)
-  | BA_int (n: int)
-  | BA_long (n: int64)
-  | BA_float (f: float)
-  | BA_single (f: float32)
-  | BA_loadstack (chunk: memory_chunk) (ofs: ptrofs)
-  | BA_addrstack (ofs: ptrofs)
-  | BA_loadglobal (chunk: memory_chunk) (id: ident) (ofs: ptrofs)
-  | BA_addrglobal (id: ident) (ofs: ptrofs)
-  | BA_splitlong (hi lo: builtin_arg A)
-  | BA_addptr (a1 a2: builtin_arg A). *)
-
 let rec string_of_builtin_arg = function
   | BA x -> Printf.sprintf "BA(%s)" x
   | BA_int n -> Printf.sprintf "BA_int(%s)" (string_of_ptrofs n)
@@ -295,6 +280,12 @@ let rec string_of_builtin_arg = function
   | BA_addrglobal (id, ofs) -> Printf.sprintf "BA_addrglobal(%s, %s)" (Obj.magic id) (string_of_ptrofs ofs)
   | BA_splitlong (hi, lo) -> Printf.sprintf "BA_splitlong(%s, %s)" (string_of_builtin_arg hi) (string_of_builtin_arg lo)
   | BA_addptr (a1, a2) -> Printf.sprintf "BA_addptr(%s, %s)" (string_of_builtin_arg a1) (string_of_builtin_arg a2)
+
+
+let string_of_builtin_args args =
+  List.map (fun arg ->
+    Printf.sprintf "%s" (Obj.magic arg)
+  ) args
 
 
 let string_of_typ = function
@@ -326,19 +317,18 @@ let print_instruction oc = function
   | Mstore (chunk, addr, args, src) -> fprintf oc "Mstore(%s, %s, [%s], %s)\n" (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg src)
   | Mcall (sig_, tgt) -> fprintf oc "Mcall(%s, %s)\n" (string_of_signature sig_) (string_fn_mcall tgt)
   | Mtailcall (sig_, tgt) -> fprintf oc "Mtailcall(%s, %s)\n" (string_of_signature sig_) (string_fn_mcall tgt)
-  | Mbuiltin (ef, args, res) -> fprintf oc "Mbuiltin(%s, [%s], %s)\n" (string_of_external_function ef) args (string_of_builtin_res res)
+  (* | Mbuiltin (ef, args, res) -> fprintf oc "Mbuiltin(%s, [%s], %s)\n" (string_of_external_function ef) (String.concat "," (string_of_builtin_args args)) (string_of_builtin_res res) *)
   | Mlabel lbl -> fprintf oc "Mlabel(%s)\n" (string_of_positive lbl)
   | Mgoto lbl -> fprintf oc "Mgoto(%s)\n" (string_of_positive lbl)
   | Mcond (cond, args, lbl) -> fprintf oc "Mcond(%s, [%s], %s)\n" (string_of_condition cond) (String.concat ", " (List.map string_of_mreg args)) (string_of_positive lbl)
   | Mjumptable (reg, lbls) -> fprintf oc "Mjumptable(%s, [%s])\n" (string_of_mreg reg) (String.concat ", " (List.map string_of_positive lbls))
   | Mreturn -> fprintf oc "Mreturn\n"
-  | _ -> fprintf oc "Mnotimplemented\n"
-
+  | _ -> fprintf oc "Not Implemented\n"
 
 
 (* Function to print a function_ *)
 let print_function oc id f =
-  fprintf oc "{Function: %s\n"  (extern_atom id);
+  fprintf oc "Function: %s\n"  (extern_atom id);
   fprintf oc "Function Signature: %s\n" (string_of_signature f.fn_sig);
   fprintf oc "Stack Size: %s\n" (string_of_ptrofs f.fn_stacksize);
   fprintf oc "Link Offset: %s\n" (string_of_ptrofs f.fn_link_ofs);
