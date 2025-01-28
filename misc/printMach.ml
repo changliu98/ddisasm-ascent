@@ -10,7 +10,7 @@
 (*                                                                     *)
 (* *********************************************************************)
 
-(** Pretty-printer for Mach code *)
+(** Modified to print Mach code to S expr*)
 
 open Printf
 open Camlcoq
@@ -50,112 +50,124 @@ let reg pp r =
 let rec regs pp = function
   | [] -> ()
   | [r] -> reg pp r
-  | r1::rl -> fprintf pp "%a, %a" reg r1 regs rl
+  | r1::rl -> fprintf pp "%a %a" reg r1 regs rl
 
 let ros pp = function
   | Coq_inl r -> reg pp r
   | Coq_inr s -> fprintf pp "\"%s\"" (extern_atom s)
 
+  let string_of_positive p = string_of_int (P.to_int p)
+
 let string_of_ptrofs ofs = string_of_int (Z.to_int ofs)
+
+let string_of_addressing = function
+| Op.Aindexed ofs -> Printf.sprintf "Op.addressing.Aindexed(%s)" (string_of_ptrofs ofs)
+| Op.Aindexed2 ofs -> Printf.sprintf "Op.addressing.Aindexed2(%s)" (string_of_ptrofs ofs)
+| Op.Ascaled (scale, ofs) -> Printf.sprintf "Op.addressing.Ascaled(%d %s)" (Z.to_int scale) (string_of_ptrofs ofs)
+| Op.Aindexed2scaled (scale, ofs) -> Printf.sprintf "Op.addressing.Aindexed2scaled(%d %s)" (Z.to_int scale) (string_of_ptrofs ofs)
+| Op.Aglobal (id, ofs) -> Printf.sprintf "Op.addressing.Aglobal(%s %s)" (string_of_positive id) (string_of_ptrofs ofs)
+| Op.Abased (id, ofs) -> Printf.sprintf "Op.addressing.Abased(%s %s)" (string_of_positive id) (string_of_ptrofs ofs)
+| Op.Abasedscaled (scale, id, ofs) -> Printf.sprintf "Op.addressing.Abasedscaled(%d %s %s)" (Z.to_int scale) (Obj.magic id) (string_of_ptrofs ofs)
+| Op.Ainstack ofs -> Printf.sprintf "Op.addressing.Ainstack(%s)" (string_of_ptrofs ofs)
 
 let string_of_operation op =
   match op with
-  | Omove -> "Omove"
-  | Ointconst n -> Printf.sprintf "Ointconst(%d)" (Z.to_int n)
-  | Olongconst n -> Printf.sprintf "Olongconst(%Ld)" (Int64.of_int (Z.to_int n))
+  | Omove -> "Op.operation.Omove"
+  | Ointconst n -> Printf.sprintf "Op.operation.Ointconst(%d)" (Z.to_int n)
+  | Olongconst n -> Printf.sprintf "Op.operation.Olongconst(%Ld)" (Int64.of_int (Z.to_int n))
   (* | Ofloatconst n -> Printf.sprintf "Ofloatconst(%f)" n
   | Osingleconst n -> Printf.sprintf "Osingleconst(%f)" n
   | Oindirectsymbol id -> Printf.sprintf "Oindirectsymbol(%d)" (Obj.magic id) *)
-  | Ocast8signed -> "Ocast8signed"
-  | Ocast8unsigned -> "Ocast8unsigned"
-  | Ocast16signed -> "Ocast16signed"
-  | Ocast16unsigned -> "Ocast16unsigned"
-  | Oneg -> "Oneg"
-  | Osub -> "Osub"
-  | Omul -> "Omul"
-  | Omulimm n -> Printf.sprintf "Omulimm(%d)" (Z.to_int n)
-  | Omulhs -> "Omulhs"
-  | Omulhu -> "Omulhu"
-  | Odiv -> "Odiv"
-  | Odivu -> "Odivu"
-  | Omod -> "Omod"
-  | Omodu -> "Omodu"
-  | Oand -> "Oand"
-  | Oandimm n -> Printf.sprintf "Oandimm(%d)" (Z.to_int n)
-  | Oor -> "Oor"
-  | Oorimm n -> Printf.sprintf "Oorimm(%d)" (Z.to_int n)
-  | Oxor -> "Oxor"
-  | Oxorimm n -> Printf.sprintf "Oxorimm(%d)" (Z.to_int n)
-  | Onot -> "Onot"
-  | Oshl -> "Oshl"
-  | Oshlimm n -> Printf.sprintf "Oshlimm(%d)" (Z.to_int n)
-  | Oshr -> "Oshr"
-  | Oshrimm n -> Printf.sprintf "Oshrimm(%d)" (Z.to_int n)
-  | Oshrximm n -> Printf.sprintf "Oshrximm(%d)" (Z.to_int n)
-  | Oshru -> "Oshru"
-  | Oshruimm n -> Printf.sprintf "Oshruimm(%d)" (Z.to_int n)
-  | Ororimm n -> Printf.sprintf "Ororimm(%d)" (Z.to_int n)
-  | Oshldimm n -> Printf.sprintf "Oshldimm(%d)" (Z.to_int n)
-  | Olea _ -> "Olea(effective address)" (* Replace `_` with specific printing for addressing if needed *)
-  | Omakelong -> "Omakelong"
-  | Olowlong -> "Olowlong"
-  | Ohighlong -> "Ohighlong"
-  | Ocast32signed -> "Ocast32signed"
-  | Ocast32unsigned -> "Ocast32unsigned"
-  | Onegl -> "Onegl"
-  | Oaddlimm n -> Printf.sprintf "Oaddlimm(%Ld)" (Int64.of_int (Z.to_int n))
-  | Osubl -> "Osubl"
-  | Omull -> "Omull"
-  | Omullimm n -> Printf.sprintf "Omullimm(%Ld)" (Int64.of_int (Z.to_int n))
-  | Omullhs -> "Omullhs"
-  | Omullhu -> "Omullhu"
-  | Odivl -> "Odivl"
-  | Odivlu -> "Odivlu"
-  | Omodl -> "Omodl"
-  | Omodlu -> "Omodlu"
-  | Oandl -> "Oandl"
-  | Oandlimm n -> Printf.sprintf "Oandlimm(%Ld)" (Int64.of_int (Z.to_int n))
-  | Oorl -> "Oorl"
-  | Oorlimm n -> Printf.sprintf "Oorlimm(%Ld)" (Int64.of_int (Z.to_int n))
-  | Oxorl -> "Oxorl"
-  | Oxorlimm n -> Printf.sprintf "Oxorlimm(%Ld)" (Int64.of_int (Z.to_int n))
-  | Onotl -> "Onotl"
-  | Oshll -> "Oshll"
-  | Oshllimm n -> Printf.sprintf "Oshllimm(%d)" (Z.to_int n)
-  | Oshrl -> "Oshrl"
-  | Oshrlimm n -> Printf.sprintf "Oshrlimm(%d)" (Z.to_int n)
-  | Oshrxlimm n -> Printf.sprintf "Oshrxlimm(%d)" (Z.to_int n)
-  | Oshrlu -> "Oshrlu"
-  | Oshrluimm n -> Printf.sprintf "Oshrluimm(%d)" (Z.to_int n)
-  | Ororlimm n -> Printf.sprintf "Ororlimm(%Ld)" (Int64.of_int (Z.to_int n))
-  | Oleal _ -> "Oleal(effective address)" (* Replace `_` with specific printing for addressing if needed *)
-  | Onegf -> "Onegf"
-  | Oabsf -> "Oabsf"
-  | Oaddf -> "Oaddf"
-  | Osubf -> "Osubf"
-  | Omulf -> "Omulf"
-  | Odivf -> "Odivf"
-  | Omaxf -> "Omaxf"
-  | Ominf -> "Ominf"
-  | Onegfs -> "Onegfs"
-  | Oabsfs -> "Oabsfs"
-  | Oaddfs -> "Oaddfs"
-  | Osubfs -> "Osubfs"
-  | Omulfs -> "Omulfs"
-  | Odivfs -> "Odivfs"
-  | Osingleoffloat -> "Osingleoffloat"
-  | Ofloatofsingle -> "Ofloatofsingle"
-  | Ointoffloat -> "Ointoffloat"
-  | Ofloatofint -> "Ofloatofint"
-  | Ointofsingle -> "Ointofsingle"
-  | Osingleofint -> "Osingleofint"
-  | Olongoffloat -> "Olongoffloat"
-  | Ofloatoflong -> "Ofloatoflong"
-  | Olongofsingle -> "Olongofsingle"
-  | Osingleoflong -> "Osingleoflong"
-  | Ocmp _ -> "Ocmp(condition)"
-  | Osel (_, _) -> "Osel(condition, typ)"
-  | _ -> "Placeholder"
+  | Ocast8signed -> "Op.operation.Ocast8signed"
+  | Ocast8unsigned -> "Op.operation.Ocast8unsigned"
+  | Ocast16signed -> "Op.operation.Ocast16signed"
+  | Ocast16unsigned -> "Op.operation.Ocast16unsigned"
+  | Oneg -> "Op.operation.Oneg"
+  | Osub -> "Op.operation.Osub"
+  | Omul -> "Op.operation.Omul"
+  | Omulimm n -> Printf.sprintf "Op.operation.Omulimm(%d)" (Z.to_int n)
+  | Omulhs -> "Op.operation.Omulhs"
+  | Omulhu -> "Op.operation.Omulhu"
+  | Odiv -> "Op.operation.Odiv"
+  | Odivu -> "Op.operation.Odivu"
+  | Omod -> "Op.operation.Omod"
+  | Omodu -> "Op.operation.Omodu"
+  | Oand -> "Op.operation.Oand"
+  | Oandimm n -> Printf.sprintf "Op.operation.Oandimm(%d)" (Z.to_int n)
+  | Oor -> "Op.operation.Oor"
+  | Oorimm n -> Printf.sprintf "Op.operation.Oorimm(%d)" (Z.to_int n)
+  | Oxor -> "Op.operation.Oxor"
+  | Oxorimm n -> Printf.sprintf "Op.operation.Oxorimm(%d)" (Z.to_int n)
+  | Onot -> "Op.operation.Onot"
+  | Oshl -> "Op.operation.Oshl"
+  | Oshlimm n -> Printf.sprintf "Op.operation.Oshlimm(%d)" (Z.to_int n)
+  | Oshr -> "Op.operation.Oshr"
+  | Oshrimm n -> Printf.sprintf "Op.operation.Oshrimm(%d)" (Z.to_int n)
+  | Oshrximm n -> Printf.sprintf "Op.operation.Oshrximm(%d)" (Z.to_int n)
+  | Oshru -> "Op.operation.Oshru"
+  | Oshruimm n -> Printf.sprintf "Op.operation.Oshruimm(%d)" (Z.to_int n)
+  | Ororimm n -> Printf.sprintf "Op.operation.Ororimm(%d)" (Z.to_int n)
+  | Oshldimm n -> Printf.sprintf "Op.operation.Oshldimm(%d)" (Z.to_int n)
+  | Olea x -> Printf.sprintf "Op.operation.Olea(%s)" (string_of_addressing x)
+  | Omakelong -> "Op.operation.Omakelong"
+  | Olowlong -> "Op.operation.Olowlong"
+  | Ohighlong -> "Op.operation.Ohighlong"
+  | Ocast32signed -> "Op.operation.Ocast32signed"
+  | Ocast32unsigned -> "Op.operation.Ocast32unsigned"
+  | Onegl -> "Op.operation.Onegl"
+  | Oaddlimm n -> Printf.sprintf "Op.operation.Oaddlimm(%Ld)" (Int64.of_int (Z.to_int n))
+  | Osubl -> "Op.operation.Osubl"
+  | Omull -> "Op.operation.Omull"
+  | Omullimm n -> Printf.sprintf "Op.operation.Omullimm(%Ld)" (Int64.of_int (Z.to_int n))
+  | Omullhs -> "Op.operation.Omullhs"
+  | Omullhu -> "Op.operation.Omullhu"
+  | Odivl -> "Op.operation.Odivl"
+  | Odivlu -> "Op.operation.Odivlu"
+  | Omodl -> "Op.operation.Omodl"
+  | Omodlu -> "Op.operation.Omodlu"
+  | Oandl -> "Op.operation.Oandl"
+  | Oandlimm n -> Printf.sprintf "Op.operation.Oandlimm(%Ld)" (Int64.of_int (Z.to_int n))
+  | Oorl -> "Op.operation.Oorl"
+  | Oorlimm n -> Printf.sprintf "Op.operation.Oorlimm(%Ld)" (Int64.of_int (Z.to_int n))
+  | Oxorl -> "Op.operation.Oxorl"
+  | Oxorlimm n -> Printf.sprintf "Op.operation.Oxorlimm(%Ld)" (Int64.of_int (Z.to_int n))
+  | Onotl -> "Op.operation.Onotl"
+  | Oshll -> "Op.operation.Oshll"
+  | Oshllimm n -> Printf.sprintf "Op.operation.Oshllimm(%d)" (Z.to_int n)
+  | Oshrl -> "Op.operation.Oshrl"
+  | Oshrlimm n -> Printf.sprintf "Op.operation.Oshrlimm(%d)" (Z.to_int n)
+  | Oshrxlimm n -> Printf.sprintf "Op.operation.Oshrxlimm(%d)" (Z.to_int n)
+  | Oshrlu -> "Op.operation.Oshrlu"
+  | Oshrluimm n -> Printf.sprintf "Op.operation.Oshrluimm(%d)" (Z.to_int n)
+  | Ororlimm n -> Printf.sprintf "Op.operation.Ororlimm(%Ld)" (Int64.of_int (Z.to_int n))
+  | Oleal _ -> "Op.operation.Oleal(?)" (* Replace `_` with specific printing for addressing if needed *)
+  | Onegf -> "Op.operation.Onegf"
+  | Oabsf -> "Op.operation.Oabsf"
+  | Oaddf -> "Op.operation.Oaddf"
+  | Osubf -> "Op.operation.Osubf"
+  | Omulf -> "Op.operation.Omulf"
+  | Odivf -> "Op.operation.Odivf"
+  | Omaxf -> "Op.operation.Omaxf"
+  | Ominf -> "Op.operation.Ominf"
+  | Onegfs -> "Op.operation.Onegfs"
+  | Oabsfs -> "Op.operation.Oabsfs"
+  | Oaddfs -> "Op.operation.Oaddfs"
+  | Osubfs -> "Op.operation.Osubfs"
+  | Omulfs -> "Op.operation.Omulfs"
+  | Odivfs -> "Op.operation.Odivfs"
+  | Osingleoffloat -> "Op.operation.Osingleoffloat"
+  | Ofloatofsingle -> "Op.operation.Ofloatofsingle"
+  | Ointoffloat -> "Op.operation.Ointoffloat"
+  | Ofloatofint -> "Op.operation.Ofloatofint"
+  | Ointofsingle -> "Op.operation.Ointofsingle"
+  | Osingleofint -> "Op.operation.Osingleofint"
+  | Olongoffloat -> "Op.operation.Olongoffloat"
+  | Ofloatoflong -> "Op.operation.Ofloatoflong"
+  | Olongofsingle -> "Op.operation.Olongofsingle"
+  | Osingleoflong -> "Op.operation.Osingleoflong"
+  | Ocmp _ -> "Op.operation.Ocmp(?)"
+  | Osel (_, _) -> "Op.operation.Osel(? ?)"
+  | _ -> "Op.operation.Float not implemented"
 
 let string_of_mreg = function
   | Machregs.AX -> "Machregs.AX"
@@ -192,28 +204,19 @@ let string_of_mreg = function
   | Machregs.FP0 -> "Machregs.FP0"
 
 let string_of_chunk = function
-  | Mbool -> "Mbool"
-  | Mint8signed -> "Mint8signed"
-  | Mint8unsigned -> "Mint8unsigned"
-  | Mint16signed -> "Mint16signed"
-  | Mint16unsigned -> "Mint16unsigned"
-  | Mint32 -> "Mint32"
-  | Mint64 -> "Mint64"
-  | Mfloat32 -> "Mfloat32"
-  | Mfloat64 -> "Mfloat64"
-  | Many32 -> "Many32"
-  | Many64 -> "Many64"
+  | Mbool -> "AST.memory_chunk.Mbool"
+  | Mint8signed -> "AST.memory_chunk.Mint8signed"
+  | Mint8unsigned -> "AST.memory_chunk.Mint8unsigned"
+  | Mint16signed -> "AST.memory_chunk.Mint16signed"
+  | Mint16unsigned -> "AST.memory_chunk.Mint16unsigned"
+  | Mint32 -> "AST.memory_chunk.Mint32"
+  | Mint64 -> "AST.memory_chunk.Mint64"
+  | Mfloat32 -> "AST.memory_chunk.Mfloat32"
+  | Mfloat64 -> "AST.memory_chunk.Mfloat64"
+  | Many32 -> "AST.memory_chunk.Many32"
+  | Many64 -> "AST.memory_chunk.Many64"
 
-let string_of_addressing = function
-  | Op.Aindexed ofs -> Printf.sprintf "Aindexed(%s)" (string_of_ptrofs ofs)
-  | Op.Aindexed2 ofs -> Printf.sprintf "Aindexed2(%s)" (string_of_ptrofs ofs)
-  | Op.Ascaled (scale, ofs) -> Printf.sprintf "Ascaled(%d, %s)" (Z.to_int scale) (string_of_ptrofs ofs)
-  | Op.Aindexed2scaled (scale, ofs) -> Printf.sprintf "Aindexed2scaled(%d, %s)" (Z.to_int scale) (string_of_ptrofs ofs)
-  (* | Op.Aglobal (id, ofs) -> Printf.sprintf "Aglobal(%s, %s)" (Obj.magic id) (string_of_ptrofs ofs)
-  | Op.Abased (id, ofs) -> Printf.sprintf "Abased(%s, %s)" (Obj.magic id) (string_of_ptrofs ofs) *)
-  | Op.Abasedscaled (scale, id, ofs) -> Printf.sprintf "Abasedscaled(%d, %s, %s)" (Z.to_int scale) (Obj.magic id) (string_of_ptrofs ofs)
-  | Op.Ainstack ofs -> Printf.sprintf "Ainstack(%s)" (string_of_ptrofs ofs)
-  | _ -> "Placeholder"
+
 
 let string_of_char_list chars =
   let buf = Buffer.create (List.length chars) in
@@ -221,145 +224,150 @@ let string_of_char_list chars =
   Buffer.contents buf
 
 let string_of_calling_convention cc =
-  Printf.sprintf "{vararg: %s, unproto: %s, structret: %s}"
+  Printf.sprintf "(mkcallconv (vararg %s) (cc_unproto %s) (cc_structret %s))"
     (match cc.cc_vararg with Some n -> string_of_int (Z.to_int n) | None -> "None")
     (string_of_bool cc.cc_unproto)
     (string_of_bool cc.cc_structret)
 
 let string_of_xtype = function
-| Xbool -> "Xbool"
-| Xint8signed -> "Xint8signed"
-| Xint8unsigned -> "Xint8unsigned"
-| Xint16signed -> "Xint16signed"
-| Xint16unsigned -> "Xint16unsigned"
-| Xint -> "Xint"
-| Xfloat -> "Xfloat"
-| Xlong -> "Xlong"
-| Xsingle -> "Xsingle"
-| Xptr -> "Xptr"
-| Xany32 -> "Xany32"
-| Xany64 -> "Xany64"
-| Xvoid -> "Xvoid"
+| Xbool -> "AST.xtype.Xbool"
+| Xint8signed -> "AST.xtype.Xint8signed"
+| Xint8unsigned -> "AST.xtype.Xint8unsigned"
+| Xint16signed -> "AST.xtype.Xint16signed"
+| Xint16unsigned -> "AST.xtype.Xint16unsigned"
+| Xint -> "AST.xtype.Xint"
+| Xfloat -> "AST.xtype.Xfloat"
+| Xlong -> "AST.xtype.Xlong"
+| Xsingle -> "AST.xtype.Xsingle"
+| Xptr -> "AST.xtype.Xptr"
+| Xany32 -> "AST.xtype.Xany32"
+| Xany64 -> "AST.xtype.Xany64"
+| Xvoid -> "AST.xtype.Xvoid"
 
 
 let string_of_signature sig_ =
   let args = List.map (fun x -> string_of_xtype x) sig_.sig_args in
   let res = string_of_xtype sig_.sig_res in
   let cc = sig_.sig_cc in
-  Printf.sprintf "{args: [%s], res: %s, sig_cc: %s}" (String.concat ", " args) res (string_of_calling_convention cc)
-
-let string_of_positive p = string_of_int (P.to_int p)
+  Printf.sprintf "((args %s) (res %s) (sig_cc %s))" (String.concat " " args) res (string_of_calling_convention cc)
 
 let string_of_comparison = function
-| _ -> "string_of_comparison"
+| _ -> "string_of_comparison.notimplemented"
 
 let string_of_condition = function
-| Ccomp c -> Printf.sprintf "Ccomp(%s)" (string_of_comparison c)
-| Ccompu c -> Printf.sprintf "Ccompu(%s)" (string_of_comparison c)
-| Ccompimm (c, n) -> Printf.sprintf "Ccompimm(%s, %s)" (string_of_comparison c) (string_of_ptrofs n)
-| Ccompuimm (c, n) -> Printf.sprintf "Ccompuimm(%s, %s)" (string_of_comparison c) (string_of_ptrofs n)
-| Ccompl c -> Printf.sprintf "Ccompl(%s)" (string_of_comparison c)
-| Ccomplu c -> Printf.sprintf "Ccomplu(%s)" (string_of_comparison c)
-| Ccomplimm (c, n) -> Printf.sprintf "Ccomplimm(%s, %s)" (string_of_comparison c) (string_of_ptrofs n)
-| Ccompluimm (c, n) -> Printf.sprintf "Ccompluimm(%s, %s)" (string_of_comparison c) (string_of_ptrofs n)
-| Ccompf c -> Printf.sprintf "Ccompf(%s)" (string_of_comparison c)
-| Cnotcompf c -> Printf.sprintf "Cnotcompf(%s)" (string_of_comparison c)
-| Ccompfs c -> Printf.sprintf "Ccompfs(%s)" (string_of_comparison c)
-| Cnotcompfs c -> Printf.sprintf "Cnotcompfs(%s)" (string_of_comparison c)
-| Cmaskzero n -> Printf.sprintf "Cmaskzero(%s)" (string_of_ptrofs n)
-| Cmasknotzero n -> Printf.sprintf "Cmasknotzero(%s)" (string_of_ptrofs n)
+| Ccomp c -> Printf.sprintf "(Op.condition.Ccomp %s)" (string_of_comparison c)
+| Ccompu c -> Printf.sprintf "(Op.condition.Ccompu %s)" (string_of_comparison c)
+| Ccompimm (c, n) -> Printf.sprintf "(Op.condition.Ccompimm %s %s)" (string_of_comparison c) (string_of_ptrofs n)
+| Ccompuimm (c, n) -> Printf.sprintf "(Op.condition.Ccompuimm %s %s)" (string_of_comparison c) (string_of_ptrofs n)
+| Ccompl c -> Printf.sprintf "(Op.condition.Ccompl %s)" (string_of_comparison c)
+| Ccomplu c -> Printf.sprintf "(Op.condition.Ccomplu %s)" (string_of_comparison c)
+| Ccomplimm (c, n) -> Printf.sprintf "(Op.condition.Ccomplimm %s %s)" (string_of_comparison c) (string_of_ptrofs n)
+| Ccompluimm (c, n) -> Printf.sprintf "(Op.condition.Ccompluimm %s %s)" (string_of_comparison c) (string_of_ptrofs n)
+| Ccompf c -> Printf.sprintf "(Op.condition.Ccompf %s)" (string_of_comparison c)
+| Cnotcompf c -> Printf.sprintf "(Op.condition.Cnotcompf %s)" (string_of_comparison c)
+| Ccompfs c -> Printf.sprintf "(Op.condition.Ccompfs %s)" (string_of_comparison c)
+| Cnotcompfs c -> Printf.sprintf "(Op.condition.Cnotcompfs %s)" (string_of_comparison c)
+| Cmaskzero n -> Printf.sprintf "(Op.condition.Cmaskzero %s)" (string_of_ptrofs n)
+| Cmasknotzero n -> Printf.sprintf "(Op.condition.Cmasknotzero %s)" (string_of_ptrofs n)
 
 
 let rec string_of_builtin_res = function
-| BR x -> Printf.sprintf "BR(%s)" (Obj.magic x)
-| BR_none -> "BR_none"
+| BR x -> Printf.sprintf "(AST.builtin_res.BR %s)" (Obj.magic x)
+| BR_none -> "(AST.builtin_res.BR_none)"
 | BR_splitlong (hi, lo) -> 
-    Printf.sprintf "BR_splitlong(%s, %s)" (string_of_builtin_res hi) (string_of_builtin_res lo)
+    Printf.sprintf "(AST.builtin_res.BR_splitlong %s %s)" (string_of_builtin_res hi) (string_of_builtin_res lo)
 
 
 let string_of_external_function = function
-| EF_external (name, sg) -> Printf.sprintf "EF_external(%s, %s)" (string_of_char_list name) (string_of_signature sg)
-| EF_builtin (name, sg) -> Printf.sprintf "EF_builtin(%s, %s)" (string_of_char_list name) (string_of_signature sg)
-| EF_runtime (name, sg) -> Printf.sprintf "EF_runtime(%s, %s)" (string_of_char_list name) (string_of_signature sg)
-| EF_vload chunk -> Printf.sprintf "EF_vload(%s)" (string_of_chunk chunk)
-| EF_vstore chunk -> Printf.sprintf "EF_vstore(%s)" (string_of_chunk chunk)
-| EF_malloc -> "EF_malloc"
-| EF_free -> "EF_free"
-| EF_memcpy (sz, al) -> Printf.sprintf "EF_memcpy(%d, %d)" (Z.to_int sz) (Z.to_int al)
-| EF_annot (kind, text, targs) -> Printf.sprintf "EF_annot(%s, %s, [%s])" (string_of_positive kind) (string_of_char_list text) (String.concat ", " (List.map (fun x -> Obj.magic x) targs))
-| EF_annot_val (kind, text, targ) -> Printf.sprintf "EF_annot_val(%s, %s, %s)" (string_of_positive kind) (string_of_char_list text) (Obj.magic targ)
-| EF_inline_asm (text, sg, clobbers) -> Printf.sprintf "EF_inline_asm(%s, %s, [%s])" (string_of_char_list text) (string_of_signature sg) (String.concat ", " (List.map (fun x -> Obj.magic x) clobbers))
-| EF_debug (kind, text, targs) -> Printf.sprintf "EF_debug(%s, %s, [%s])" (string_of_positive kind) (Obj.magic text) (String.concat ", " (List.map (fun x -> Obj.magic x) targs))
+| EF_external (name, sg) -> Printf.sprintf "(AST.external_function.EF_external %s %s)" (string_of_char_list name) (string_of_signature sg)
+| EF_builtin (name, sg) -> Printf.sprintf "(AST.external_function.EF_builtin %s %s)" (string_of_char_list name) (string_of_signature sg)
+| EF_runtime (name, sg) -> Printf.sprintf "(AST.external_function.EF_runtime %s %s)" (string_of_char_list name) (string_of_signature sg)
+| EF_vload chunk -> Printf.sprintf "(AST.external_function.EF_vload %s)" (string_of_chunk chunk)
+| EF_vstore chunk -> Printf.sprintf "(AST.external_function.EF_vstore %s)" (string_of_chunk chunk)
+| EF_malloc -> "(AST.external_function.EF_malloc)"
+| EF_free -> "(AST.external_function.EF_free)"
+| EF_memcpy (sz, al) -> Printf.sprintf "(AST.external_function.EF_memcpy %d %d)" (Z.to_int sz) (Z.to_int al)
+| EF_annot (kind, text, targs) -> Printf.sprintf "(AST.external_function.EF_annot %s %s (%s))" (string_of_positive kind) (string_of_char_list text) (String.concat ", " (List.map (fun x -> Obj.magic x) targs))
+| EF_annot_val (kind, text, targ) -> Printf.sprintf "(AST.external_function.EF_annot_val %s %s (%s))" (string_of_positive kind) (string_of_char_list text) (Obj.magic targ)
+| EF_inline_asm (text, sg, clobbers) -> Printf.sprintf "(AST.external_function.EF_inline_asm %s %s (%s))" (string_of_char_list text) (string_of_signature sg) (String.concat ", " (List.map (fun x -> Obj.magic x) clobbers))
+| EF_debug (kind, text, targs) -> Printf.sprintf "(AST.external_function.EF_debug %s %s (%s))" (string_of_positive kind) (Obj.magic text) (String.concat ", " (List.map (fun x -> Obj.magic x) targs))
 
 let rec string_of_builtin_arg = function
-  | BA x -> Printf.sprintf "BA(%s)" x
-  | BA_int n -> Printf.sprintf "BA_int(%s)" (string_of_ptrofs n)
-  | BA_long n -> Printf.sprintf "BA_long(%s)" (string_of_ptrofs n)
-  | BA_float f -> Printf.sprintf "BA_float(%s)" (Obj.magic f)
-  | BA_single f -> Printf.sprintf "BA_single(%f)" (Obj.magic f)
-  | BA_loadstack (chunk, ofs) -> Printf.sprintf "BA_loadstack(%s, %s)" (string_of_chunk chunk) (string_of_ptrofs ofs)
-  | BA_addrstack ofs -> Printf.sprintf "BA_addrstack(%s)" (string_of_ptrofs ofs)
-  | BA_loadglobal (chunk, id, ofs) -> Printf.sprintf "BA_loadglobal(%s, %s, %s)" (string_of_chunk chunk) (Obj.magic id) (string_of_ptrofs ofs)
-  | BA_addrglobal (id, ofs) -> Printf.sprintf "BA_addrglobal(%s, %s)" (Obj.magic id) (string_of_ptrofs ofs)
-  | BA_splitlong (hi, lo) -> Printf.sprintf "BA_splitlong(%s, %s)" (string_of_builtin_arg hi) (string_of_builtin_arg lo)
-  | BA_addptr (a1, a2) -> Printf.sprintf "BA_addptr(%s, %s)" (string_of_builtin_arg a1) (string_of_builtin_arg a2)
+  | BA x -> Printf.sprintf "(AST.builtin_arg.BA %s)" x
+  | BA_int n -> Printf.sprintf "(AST.builtin_arg.BA_int %s)" (string_of_ptrofs n)
+  | BA_long n -> Printf.sprintf "(AST.builtin_arg.BA_long %s)" (string_of_ptrofs n)
+  | BA_float f -> Printf.sprintf "(AST.builtin_arg.BA_float %s)" (Obj.magic f)
+  | BA_single f -> Printf.sprintf "(AST.builtin_arg.BA_single %f)" (Obj.magic f)
+  | BA_loadstack (chunk, ofs) -> Printf.sprintf "(AST.builtin_arg.BA_loadstack %s %s)" (string_of_chunk chunk) (string_of_ptrofs ofs)
+  | BA_addrstack ofs -> Printf.sprintf "(AST.builtin_arg.BA_addrstack %s)" (string_of_ptrofs ofs)
+  | BA_loadglobal (chunk, id, ofs) -> Printf.sprintf "(AST.builtin_arg.BA_loadglobal %s %s %s)" (string_of_chunk chunk) (Obj.magic id) (string_of_ptrofs ofs)
+  | BA_addrglobal (id, ofs) -> Printf.sprintf "(AST.builtin_arg.BA_addrglobal %s %s)" (Obj.magic id) (string_of_ptrofs ofs)
+  | BA_splitlong (hi, lo) -> Printf.sprintf "(AST.builtin_arg.BA_splitlong %s %s)" (string_of_builtin_arg hi) (string_of_builtin_arg lo)
+  | BA_addptr (a1, a2) -> Printf.sprintf "(AST.builtin_arg.BA_addptr %s %s)" (string_of_builtin_arg a1) (string_of_builtin_arg a2)
 
 
 let string_of_builtin_args args =
   List.map (fun arg ->
-    Printf.sprintf "%s" (Obj.magic arg)
+    Printf.sprintf "(%s)" (string_of_builtin_arg arg)
   ) args
 
 
 let string_of_typ = function
-| Tint -> "Tint"
-| Tfloat -> "Tfloat"
-| Tlong -> "Tlong"
-| Tsingle -> "Tsingle"
-| Tany32 -> "Tany32"
-| Tany64 -> "Tany64"
+| Tint -> "AST.typ.Tint"
+| Tfloat -> "AST.typ.Tfloat"
+| Tlong -> "AST.typ.Tlong"
+| Tsingle -> "AST.typ.Tsingle"
+| Tany32 -> "AST.typ.Tany32"
+| Tany64 -> "AST.typ.Tany64"
 
 let string_fn_mcall = function
   | Coq_inl r -> (string_of_mreg r)
   | Coq_inr s -> (extern_atom s)
 
 let print_instruction oc = function
-  | Mgetstack (ofs, typ, reg) -> let uuid = generate_uuid () in fprintf oc "Mgetstack(%s %s, %s, %s)\n" uuid (string_of_ptrofs ofs) (string_of_typ typ) (string_of_mreg reg)
-  | Msetstack (arg, ofs, typ) -> fprintf oc "Msetstack(%s, %s, %s)\n"  (string_of_mreg arg) (string_of_ptrofs ofs) (string_of_typ typ)
+  | Mgetstack (ofs, typ, reg) -> let uuid = generate_uuid () in fprintf oc "(Mach.instruction.Mgetstack %s %s %s %s)" uuid (string_of_ptrofs ofs) (string_of_typ typ) (string_of_mreg reg)
+  | Msetstack (arg, ofs, typ) -> fprintf oc "(Mach.instruction.Msetstack %s %s %s)"  (string_of_mreg arg) (string_of_ptrofs ofs) (string_of_typ typ)
   | Mgetparam (ofs, typ, res) -> 
-    fprintf oc "Mgetparam(%s, %s, %s)\n" 
+    fprintf oc "(Mach.instruction.Mgetparam %s %s %s)" 
         (string_of_ptrofs ofs) 
         (string_of_typ typ) 
         (string_of_mreg res)
   | Mop (op, args, res) ->
-    fprintf oc "Mop(%s, [%s], %s)\n"
+    fprintf oc "(Mach.instruction.Mop %s (%s) %s)\n"
       (string_of_operation op)
       (String.concat ", " (List.map string_of_mreg args))
       (string_of_mreg res)
-  | Mload (chunk, addr, args, res) -> fprintf oc "Mload(%s, %s, [%s], %s)\n" (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg res)
-  | Mstore (chunk, addr, args, src) -> fprintf oc "Mstore(%s, %s, [%s], %s)\n" (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg src)
-  | Mcall (sig_, tgt) -> fprintf oc "Mcall(%s, %s)\n" (string_of_signature sig_) (string_fn_mcall tgt)
-  | Mtailcall (sig_, tgt) -> fprintf oc "Mtailcall(%s, %s)\n" (string_of_signature sig_) (string_fn_mcall tgt)
-  (* | Mbuiltin (ef, args, res) -> fprintf oc "Mbuiltin(%s, [%s], %s)\n" (string_of_external_function ef) (String.concat "," (string_of_builtin_args args)) (string_of_builtin_res res) *)
-  | Mlabel lbl -> fprintf oc "Mlabel(%s)\n" (string_of_positive lbl)
-  | Mgoto lbl -> fprintf oc "Mgoto(%s)\n" (string_of_positive lbl)
-  | Mcond (cond, args, lbl) -> fprintf oc "Mcond(%s, [%s], %s)\n" (string_of_condition cond) (String.concat ", " (List.map string_of_mreg args)) (string_of_positive lbl)
-  | Mjumptable (reg, lbls) -> fprintf oc "Mjumptable(%s, [%s])\n" (string_of_mreg reg) (String.concat ", " (List.map string_of_positive lbls))
-  | Mreturn -> fprintf oc "Mreturn\n"
-  | _ -> fprintf oc "Not Implemented\n"
+  | Mload (chunk, addr, args, res) -> fprintf oc "(Mach.instruction.Mload %s %s (%s) %s)" (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg res)
+  | Mstore (chunk, addr, args, src) -> fprintf oc "(Mach.instruction.Mstore %s %s (%s) %s)\n" (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg src)
+  | Mcall (sig_, tgt) -> fprintf oc "(Mach.instruction.Mcall %s %s)\n" (string_of_signature sig_) (string_fn_mcall tgt)
+  | Mtailcall (sig_, tgt) -> fprintf oc "(Mach.instruction.Mtailcall %s %s)\n" (string_of_signature sig_) (string_fn_mcall tgt)
+  (* | Mbuiltin (ef, args, res) -> fprintf oc "Mbuiltin(%s (%s) %s)\n" (string_of_external_function ef) (String.concat "" (string_of_builtin_args args)) (string_of_builtin_res res) *)
+  | Mlabel lbl -> fprintf oc "(Mach.instruction.Mlabel %s)\n" (string_of_positive lbl)
+  | Mgoto lbl -> fprintf oc "(Mach.instruction.Mgoto %s)\n" (string_of_positive lbl)
+  | Mcond (cond, args, lbl) -> fprintf oc "(Mach.instruction.Mcond %s (%s) %s)\n" (string_of_condition cond) (String.concat " " (List.map string_of_mreg args)) (string_of_positive lbl)
+  | Mjumptable (reg, lbls) -> fprintf oc "(Mach.instruction.Mjumptable %s (%s))\n" (string_of_mreg reg) (String.concat " " (List.map string_of_positive lbls))
+  | Mreturn -> fprintf oc "(Mach.instruction.Mreturn)\n"
+  | _ -> fprintf oc "(Mach.instruction.Not Implemented)\n"
 
+
+  (* Record function: Type := mkfunction
+  { fn_sig: signature;
+    fn_code: code;
+    fn_stacksize: Z;
+    fn_link_ofs: ptrofs;
+    fn_retaddr_ofs: ptrofs }. *)
 
 (* Function to print a function_ *)
 let print_function oc id f =
-  fprintf oc "Function(";
-  fprintf oc "%s"  (extern_atom id);
-  fprintf oc "Function Signature: %s\n" (string_of_signature f.fn_sig);
-  fprintf oc "Stack Size: %s\n" (string_of_ptrofs f.fn_stacksize);
-  fprintf oc "Link Offset: %s\n" (string_of_ptrofs f.fn_link_ofs);
-  fprintf oc "Return Address Offset: %s\n" (string_of_ptrofs f.fn_retaddr_ofs);
-  fprintf oc "Code:\n";
+  fprintf oc " mkfunction(";
+  fprintf oc "(fn_sig %s)\n" (string_of_signature f.fn_sig);
+  fprintf oc "(fn_code ";
   List.iter (print_instruction oc) f.fn_code;
-  fprintf oc ")\n"
+  fprintf oc ") ";
+  fprintf oc "(fn_stacksize %s) " (string_of_ptrofs f.fn_stacksize);
+  fprintf oc "(fn_link_ofs %s) " (string_of_ptrofs f.fn_link_ofs);
+  fprintf oc "(fn_retaddr_ofs %s) " (string_of_ptrofs f.fn_retaddr_ofs);
+  fprintf oc ")"
 
 (* Function to print a global definition *)
 let print_globdef pp (ident, gd) =
@@ -369,7 +377,9 @@ let print_globdef pp (ident, gd) =
 
 (* Function to print the entire program *)
 let print_program oc prog =
-  List.iter (print_globdef oc) prog.prog_defs
+  fprintf oc "(";
+  List.iter (print_globdef oc) prog.prog_defs;
+  fprintf oc ")"
 
 (* Destination file option *)
 let destination : string option ref = ref None
