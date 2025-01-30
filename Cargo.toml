@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 ascent = { path = "./ascent-plusplus/ascent" }
 csv = "1.3.1"
+lexpr = "0.2.7"

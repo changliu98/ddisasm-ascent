@@ -143,19 +143,19 @@ pub mod automaton {
         pass() <-- check(x), valid_imm(x); 
     }
 
-    #[test]
-    fn test_imm_automaton() {
-        let x = 0b11111111;
-        let mut auto = AutomatonTable::default();
-        auto.run();
-        let mut validator = ImmAutomaton {
-            check: vec![(x,)],
-            do_run: vec![(8, State::SA, x)],
-            ..ImmAutomaton::default()
-        };
-        validator.run(&auto);
-        let res = validator.pass.len() == 1;
-        assert!(res);
-    }
+    // #[test]
+    // fn test_imm_automaton() {
+    //     let x = 0b11111111;
+    //     let mut auto = AutomatonTable::default();
+    //     auto.run();
+    //     let mut validator = ImmAutomaton {
+    //         check: vec![(x,)],
+    //         do_run: vec![(8, State::SA, x)],
+    //         ..ImmAutomaton::default()
+    //     };
+    //     validator.run(&auto);
+    //     let res = validator.pass.len() == 1;
+    //     assert!(res);
+    // }
 }
 

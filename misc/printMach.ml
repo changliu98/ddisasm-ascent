@@ -249,7 +249,7 @@ let string_of_signature sig_ =
   let args = List.map (fun x -> string_of_xtype x) sig_.sig_args in
   let res = string_of_xtype sig_.sig_res in
   let cc = sig_.sig_cc in
-  Printf.sprintf "((args %s) (res %s) (sig_cc %s))" (String.concat " " args) res (string_of_calling_convention cc)
+  Printf.sprintf "(mksignature (sig_args %s) (sig_res %s) (sig_cc %s))" (String.concat " " args) res (string_of_calling_convention cc)
 
 let string_of_comparison = function
 | _ -> "string_of_comparison.notimplemented"
