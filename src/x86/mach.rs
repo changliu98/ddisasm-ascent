@@ -103,7 +103,8 @@ impl From<String> for Instruction {
                                 let reg = Mreg::from(args.next().unwrap().to_string());
                                 Instruction::Mgetparam(ofs, typ, reg)
                             }
-                            _ => panic!("Failed to parse {}", sym.as_ref())
+                            _ => Instruction::Mreturn
+                            // _ => panic!("Failed to parse {}", sym.as_ref())
                         }
                     }
                     _ => panic!("Failed to parse {}", instr_type)
@@ -111,7 +112,6 @@ impl From<String> for Instruction {
             }
             _ => panic!("Failed to parse {}", s)
         }
-
     }
 }
 
@@ -169,23 +169,39 @@ impl From<String> for Function {
     fn from(s: String) -> Self {
         let parsed = lexpr::from_str(&s).expect("Failed to parse");
         match parsed {
-            Value::Cons(cons) => {s
+            Value::Cons(cons) => {
                 let head = cons.car();
                 if *head != Value::Symbol("mkfunction".into()) {
                     panic!("Failed to parse: {}, expected mkfunction", head)
                 }
                 let args = cons.cdr();
-                let mut args = args.list_iter().unwrap();
-                let sig = Signature::from(args.next().unwrap().to_string());
-                let code = args.next().unwrap().to_string();
-                let stacksize = args.next().unwrap().as_u64().unwrap();
-                let link_ofs = args.next().unwrap().as_u64().unwrap();
-                let retaddr_ofs = args.next().unwrap().as_u64().unwrap();
-                Function{fn_sig: sig, fn_code: code, fn_stacksize: stacksize, fn_link_ofs: link_ofs, fn_retaddr_ofs: retaddr_ofs}
+                let mut args_iter = args.list_iter().unwrap();
+                let sig = Signature::from(args_iter.next().unwrap().to_string());
+                let code = args_iter.next().unwrap().to_string();
+                let stacksize = args_iter.next().unwrap().as_u64().unwrap();
+                let link_ofs = args_iter.next().unwrap().as_u64().unwrap();
+                let retaddr_ofs = args_iter.next().unwrap().as_u64().unwrap();
+                let instr_parsed = lexpr::from_str(&code).unwrap();
+                let mut instr_vec = Vec::new();
+                for instr in instr_parsed.list_iter().unwrap(){
+                    let mut instr = Instruction::from(instr.to_string());
+                    instr_vec.push(instr);
+                }
+
+                Function{fn_sig: sig, fn_code: instr_vec, fn_stacksize: stacksize, fn_link_ofs: link_ofs, fn_retaddr_ofs: retaddr_ofs}
             }
-            _ => panic!("Failed to parse {}", s)
+            _ => panic!("Failed to parse Function: {}", s)
         }
     }
+}
+
+#[test]
+fn test_load_function(){
+    let s = "
+        (mkfunction (mksignature () AST.xtype.Xint (mkcallconv (vararg None) (cc_unproto false) (cc_structret false)))
+        ((Mach.instruction.Mop Op.operation.Oleal(?) () Machregs.DI) (Mach.instruction.NotImplemented) (Mach.instruction.Mop Op.operation.Ointconst(0) () Machregs.AX) (Mach.instruction.Mreturn) ) 16 0 8 )
+    ";
+    let mut f = Function::from(s.to_string());
 }
 
 

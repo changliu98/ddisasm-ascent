@@ -249,7 +249,7 @@ let string_of_signature sig_ =
   let args = List.map (fun x -> string_of_xtype x) sig_.sig_args in
   let res = string_of_xtype sig_.sig_res in
   let cc = sig_.sig_cc in
-  Printf.sprintf "(mksignature (sig_args %s) (sig_res %s) (sig_cc %s))" (String.concat " " args) res (string_of_calling_convention cc)
+  Printf.sprintf "(%s) %s %s" (String.concat " " args) res (string_of_calling_convention cc)
 
 let string_of_comparison = function
 | _ -> "string_of_comparison.notimplemented"
@@ -325,29 +325,29 @@ let string_fn_mcall = function
   | Coq_inr s -> (extern_atom s)
 
 let print_instruction oc = function
-  | Mgetstack (ofs, typ, reg) -> let uuid = generate_uuid () in fprintf oc "(Mach.instruction.Mgetstack %s %s %s %s)" uuid (string_of_ptrofs ofs) (string_of_typ typ) (string_of_mreg reg)
-  | Msetstack (arg, ofs, typ) -> fprintf oc "(Mach.instruction.Msetstack %s %s %s)"  (string_of_mreg arg) (string_of_ptrofs ofs) (string_of_typ typ)
+  | Mgetstack (ofs, typ, reg) -> fprintf oc "(Mach.instruction.Mgetstack %s %s %s) " (string_of_ptrofs ofs) (string_of_typ typ) (string_of_mreg reg)
+  | Msetstack (arg, ofs, typ) -> fprintf oc "(Mach.instruction.Msetstack %s %s %s) "  (string_of_mreg arg) (string_of_ptrofs ofs) (string_of_typ typ)
   | Mgetparam (ofs, typ, res) -> 
-    fprintf oc "(Mach.instruction.Mgetparam %s %s %s)" 
+    fprintf oc "(Mach.instruction.Mgetparam %s %s %s) " 
         (string_of_ptrofs ofs) 
         (string_of_typ typ) 
         (string_of_mreg res)
   | Mop (op, args, res) ->
-    fprintf oc "(Mach.instruction.Mop %s (%s) %s)\n"
+    fprintf oc "(Mach.instruction.Mop %s (%s) %s) "
       (string_of_operation op)
       (String.concat ", " (List.map string_of_mreg args))
       (string_of_mreg res)
-  | Mload (chunk, addr, args, res) -> fprintf oc "(Mach.instruction.Mload %s %s (%s) %s)" (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg res)
-  | Mstore (chunk, addr, args, src) -> fprintf oc "(Mach.instruction.Mstore %s %s (%s) %s)\n" (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg src)
-  | Mcall (sig_, tgt) -> fprintf oc "(Mach.instruction.Mcall %s %s)\n" (string_of_signature sig_) (string_fn_mcall tgt)
-  | Mtailcall (sig_, tgt) -> fprintf oc "(Mach.instruction.Mtailcall %s %s)\n" (string_of_signature sig_) (string_fn_mcall tgt)
+  | Mload (chunk, addr, args, res) -> fprintf oc "(Mach.instruction.Mload %s %s (%s) %s) " (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg res)
+  | Mstore (chunk, addr, args, src) -> fprintf oc "(Mach.instruction.Mstore %s %s (%s) %s) " (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg src)
+  (* | Mcall (sig_, tgt) -> fprintf oc "(Mach.instruction.Mcall %s %s) " (string_of_signature sig_) (string_fn_mcall tgt)
+  | Mtailcall (sig_, tgt) -> fprintf oc "(Mach.instruction.Mtailcall %s %s) " (string_of_signature sig_) (string_fn_mcall tgt) *)
   (* | Mbuiltin (ef, args, res) -> fprintf oc "Mbuiltin(%s (%s) %s)\n" (string_of_external_function ef) (String.concat "" (string_of_builtin_args args)) (string_of_builtin_res res) *)
-  | Mlabel lbl -> fprintf oc "(Mach.instruction.Mlabel %s)\n" (string_of_positive lbl)
-  | Mgoto lbl -> fprintf oc "(Mach.instruction.Mgoto %s)\n" (string_of_positive lbl)
-  | Mcond (cond, args, lbl) -> fprintf oc "(Mach.instruction.Mcond %s (%s) %s)\n" (string_of_condition cond) (String.concat " " (List.map string_of_mreg args)) (string_of_positive lbl)
-  | Mjumptable (reg, lbls) -> fprintf oc "(Mach.instruction.Mjumptable %s (%s))\n" (string_of_mreg reg) (String.concat " " (List.map string_of_positive lbls))
-  | Mreturn -> fprintf oc "(Mach.instruction.Mreturn)\n"
-  | _ -> fprintf oc "(Mach.instruction.Not Implemented)\n"
+  | Mlabel lbl -> fprintf oc "(Mach.instruction.Mlabel %s) " (string_of_positive lbl)
+  | Mgoto lbl -> fprintf oc "(Mach.instruction.Mgoto %s) " (string_of_positive lbl)
+  | Mcond (cond, args, lbl) -> fprintf oc "(Mach.instruction.Mcond %s (%s) %s) " (string_of_condition cond) (String.concat " " (List.map string_of_mreg args)) (string_of_positive lbl)
+  | Mjumptable (reg, lbls) -> fprintf oc "(Mach.instruction.Mjumptable %s (%s)) " (string_of_mreg reg) (String.concat " " (List.map string_of_positive lbls))
+  | Mreturn -> fprintf oc "(Mach.instruction.Mreturn) "
+  | _ -> fprintf oc "(Mach.instruction.NotImplemented) "
 
 
   (* Record function: Type := mkfunction
@@ -359,14 +359,14 @@ let print_instruction oc = function
 
 (* Function to print a function_ *)
 let print_function oc id f =
-  fprintf oc " mkfunction(";
-  fprintf oc "(fn_sig %s)\n" (string_of_signature f.fn_sig);
-  fprintf oc "(fn_code ";
+  fprintf oc "(mkfunction ";
+  fprintf oc "(mksignature %s)\n" (string_of_signature f.fn_sig);
+  fprintf oc "(";
   List.iter (print_instruction oc) f.fn_code;
   fprintf oc ") ";
-  fprintf oc "(fn_stacksize %s) " (string_of_ptrofs f.fn_stacksize);
-  fprintf oc "(fn_link_ofs %s) " (string_of_ptrofs f.fn_link_ofs);
-  fprintf oc "(fn_retaddr_ofs %s) " (string_of_ptrofs f.fn_retaddr_ofs);
+  fprintf oc "%s " (string_of_ptrofs f.fn_stacksize);
+  fprintf oc "%s " (string_of_ptrofs f.fn_link_ofs);
+  fprintf oc "%s " (string_of_ptrofs f.fn_retaddr_ofs);
   fprintf oc ")"
 
 (* Function to print a global definition *)
@@ -377,8 +377,12 @@ let print_globdef pp (ident, gd) =
 
 (* Function to print the entire program *)
 let print_program oc prog =
+  fprintf oc "(mkprogram ";
   fprintf oc "(";
   List.iter (print_globdef oc) prog.prog_defs;
+  fprintf oc ")";
+  fprintf oc "(%s) " (String.concat " " (List.map string_of_positive prog.prog_public));
+  fprintf oc "%s " (string_of_positive prog.prog_main);
   fprintf oc ")"
 
 (* Destination file option *)

@@ -19,7 +19,7 @@ pub enum Either<A, B> {
 }
 
 
-fn read_file(filename:&str) -> String {
+pub fn read_file(filename:&str) -> String {
     let mut file = fs::File::open(filename).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
@@ -50,4 +50,14 @@ fn test_printMach() {
     let data = read_file("sample.mach");
     let v = lexpr::from_str(&data);
     test_command("rm", &["-rf", "sample.mach", "test_scripts/a.out"]);   
+}
+
+#[test]
+fn test_load_machfile(){
+
+    test_command("sh", &["test_scripts/test_printMach.sh"]);
+    let data = read_file("sample.mach");
+    test_command("rm", &["-rf", "sample.mach", "test_scripts/a.out"]);   
+    let program = ast::Program::from(data);
+
 }
