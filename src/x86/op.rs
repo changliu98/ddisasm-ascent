@@ -153,4 +153,26 @@ pub enum Operation {
     Osingleoflong,
     Ocmp(Condition),
     Osel(Condition, Typ),
+    Todo
+}
+impl From<String> for Operation {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "Ocast8signed" => Operation::Ocast8signed,
+            "Ocast8unsigned" => Operation::Ocast8unsigned,
+            "Ocast16signed" => Operation::Ocast16signed,
+            "Ocast16unsigned" => Operation::Ocast16unsigned,
+            "Oneg" => Operation::Oneg,
+            "Osub" => Operation::Osub,
+            "Omul" => Operation::Omul,
+            "Omulimm" => Operation::Omulimm(0),
+            "Omulhs" => Operation::Omulhs,
+            "Omulhu" => Operation::Omulhu,
+            "Odiv" => Operation::Odiv,
+            "Odivu" => Operation::Odivu,
+            "Omod" => Operation::Omod,
+            "Omodu" => Operation::Omodu,
+            _ => Operation::Todo
+        }  
+    }
 }

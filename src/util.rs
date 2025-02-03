@@ -1,11 +1,15 @@
 use std::rc::Rc;
 use ascent::{ascent, Lattice};
-use lexpr::{Value, parse::Error};
+use lexpr::{Value, parse::Error, cons};
 use std::fs;
 use std::env;
 use std::io::Read;
 use std::process::{Command, ExitStatus};
 use std::io::{self, Write};
+use crate::ast;
+use std::collections::HashMap;
+use std::any::Any;
+use crate::x86::mach;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -13,6 +17,7 @@ pub enum Either<A, B> {
     Left(A),
     Right(B),
 }
+
 
 fn read_file(filename:&str) -> String {
     let mut file = fs::File::open(filename).unwrap();
@@ -39,12 +44,10 @@ fn test_command(command: &str, args: &[&str]) -> io::Result<ExitStatus> {
 
 
 #[test]
-fn test_printMach() -> Result<(), lexpr::parse::Error> {
+fn test_printMach() {
 
     test_command("sh", &["test_scripts/test_printMach.sh"]);
     let data = read_file("sample.mach");
-    let v = lexpr::from_str(&data)?;
-    test_command("rm", &["-rf", "sample.mach"]);
-    Ok(()) //Really?
-    
+    let v = lexpr::from_str(&data);
+    test_command("rm", &["-rf", "sample.mach", "test_scripts/a.out"]);   
 }

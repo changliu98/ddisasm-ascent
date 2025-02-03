@@ -1,19 +1,31 @@
 use std::hash::{Hash, Hasher};
-
+use lexpr::{Value, parse::Error, cons};
 use crate::x86::op::Ptrofs;
 
 
 pub type Ident = usize;
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Typ {
-    TInt,
-    TFloat,
-    TLong,
-    TSingle,
-    TAny32,
-    TAny64,
+    Tint,
+    Tfloat,
+    Tlong,
+    Tsingle,
+    Tany32,
+    Tany64,
+}
+impl From<String> for Typ {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "AST.typ.Tint" => Typ::Tint,
+            "AST.typ.Tfloat" => Typ::Tfloat,
+            "AST.typ.Tlong" => Typ::Tlong,
+            "AST.typ.Tsingle" => Typ::Tsingle,
+            "AST.typ.Tany32" => Typ::Tany32,
+            "AST.typ.Tany64" => Typ::Tany64,
+            _ => panic!("Invalid type at AST.typ {}", s),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -32,6 +44,20 @@ pub enum XType {
     XAny64,
     XVoid,
 }
+
+impl From<String> for XType {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "AST.xtype.bool" => XType::XBool, "AST.xtype.int8" => XType::XInt8Signed, "AST.xtype.uint8" => XType::XInt8Unsigned,
+            "AST.xtype.int16" => XType::XInt16Signed,"AST.xtype.uint16" => XType::XInt16Unsigned, "AST.xtype.int" => XType::XInt,
+            "AST.xtype.float" => XType::XFloat, "AST.xtype.long" => XType::XLong, "AST.xtype.single" => XType::XSingle,
+            "AST.xtype.ptr" => XType::XPtr, "AST.xtype.any32" => XType::XAny32, "AST.xtype.any64" => XType::XAny64,
+            "AST.xtype.void" => XType::XVoid,
+            _ => panic!("Invalid type"),
+        }
+    }
+}
+
 
 pub type Z = i64;
 pub type Positive = i64;
@@ -57,6 +83,39 @@ pub struct Signature {
     pub res: XType,
     pub cc: CallConv,
 }
+impl Default for Signature {
+    fn default() -> Self {
+        Signature {
+            args: vec![],
+            res: XType::XVoid,
+            cc: CallConv::default(),
+        }
+    }
+}
+impl From<String> for Signature {
+    fn from(s: String) -> Self {
+        let parsed = lexpr::from_str(&s).expect("Failed to parse");
+        match parsed {
+            Value::Cons(cons) => {
+                let head = cons.car();
+                if *head != Value::Symbol("mksignature".into()) {
+                    panic!("Failed to parse: {}, expected mksignature", head)
+                }
+                let args = cons.cdr();
+                let mut args = args.list_iter().unwrap();
+                let res = args.next().unwrap().to_string();
+                let cc = args.next().unwrap().to_string();
+                Signature {
+                    args: args.into_iter().map(|s| XType::from(s)).collect(),
+                    res: XType::from(res),
+                    cc: CallConv::default(),
+                }
+            }
+            _ => panic!("Failed to parse {}", s),
+        }
+    }
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CallConv {
@@ -64,6 +123,16 @@ pub struct CallConv {
     pub unproto: bool,
     pub structured_ret: bool,
 }
+impl Default for CallConv {
+    fn default() -> Self {
+        CallConv {
+            varargs: None,
+            unproto: false,
+            structured_ret: false,
+        }
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExternalFunction {
@@ -169,5 +238,20 @@ impl<F, V> Program<F, V> {
             prog_public,
             prog_main,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CallingConvention {
+    pub cc_vararg: Option<Z>,
+    pub cc_unproto: bool,
+    pub cc_structret: bool,
+}
+
+pub fn mkcallconv(cc_vararg: Option<Z>, cc_unproto: bool, cc_structret: bool) -> CallingConvention {
+    CallingConvention {
+        cc_vararg,
+        cc_unproto,
+        cc_structret,
     }
 }
