@@ -1,6 +1,6 @@
 use crate::ast::{Ident, Typ, Z};
-
 use super::reg::Mreg;
+use lexpr::{Value, parse::Error, cons};
 
 pub type Ptrofs = u64;
 
@@ -25,6 +25,125 @@ pub enum Addressing {
     Abased(Ident, Ptrofs),
     Abasedscaled(Z, Ident, Ptrofs),
     Ainstack(Ptrofs)
+}
+
+// let string_of_addressing = function
+// | Op.Aindexed ofs -> Printf.sprintf "(Op.addressing.Aindexed %s)" (string_of_ptrofs ofs)
+// | Op.Aindexed2 ofs -> Printf.sprintf "(Op.addressing.Aindexed2 %s)" (string_of_ptrofs ofs)
+// | Op.Ascaled (scale, ofs) -> Printf.sprintf "(Op.addressing.Ascaled %d %s)" (Z.to_int scale) (string_of_ptrofs ofs)
+// | Op.Aindexed2scaled (scale, ofs) -> Printf.sprintf "(Op.addressing.Aindexed2scaled %d %s)" (Z.to_int scale) (string_of_ptrofs ofs)
+// | Op.Aglobal (id, ofs) -> Printf.sprintf "(Op.addressing.Aglobal %s %s)" (string_of_positive id) (string_of_ptrofs ofs)
+// | Op.Abased (id, ofs) -> Printf.sprintf "(Op.addressing.Abased %s %s)" (string_of_positive id) (string_of_ptrofs ofs)
+// | Op.Abasedscaled (scale, id, ofs) -> Printf.sprintf "(Op.addressing.Abasedscaled %d %s %s)" (Z.to_int scale) (Obj.magic id) (string_of_ptrofs ofs)
+// | Op.Ainstack ofs -> Printf.sprintf "(Op.addressing.Ainstack %s)" (string_of_ptrofs ofs)
+
+impl From<String> for Addressing {
+    fn from(s: String) -> Self {
+        let parsed = lexpr::from_str(&s).expect("Failed to parse Addressing");
+        match parsed {
+            Value::Cons(cons) => {
+                let op_type = cons.car();
+                match op_type {
+                    Value::Symbol(sym) => {
+                        match sym.as_ref() {
+                            "Op.addressing.Aindexed" => {
+                                let args = cons.cdr();
+                                match args {
+                                    Value::Cons(args) => {
+                                        let ofs = args.car().as_i64().unwrap();
+                                        Addressing::Aindexed(ofs)
+                                    }
+                                    _ => panic!("Expected a cons cell"),
+                                }
+                            }
+                            "Op.addressing.Aindexed2" => {
+                                let args = cons.cdr();
+                                match args {
+                                    Value::Cons(args) => {
+                                        let ofs = args.car().as_i64().unwrap();
+                                        Addressing::Aindexed2(ofs)
+                                    }
+                                    _ => panic!("Expected a cons cell"),
+                                }
+                            }
+                            "Op.addressing.Ascaled" => {
+                                let args = cons.cdr();
+                                match args {
+                                    Value::Cons(args) => {
+                                        let scale = args.car().as_i64().unwrap();
+                                        let ofs = args.cdr().to_string().parse::<i64>().unwrap();
+                                        Addressing::Ascaled(scale, ofs)
+                                    }
+                                    _ => panic!("Expected a cons cell"),
+                                }
+                            }
+                            "Op.addressing.Aindexed2scaled" => {
+                                let args = cons.cdr();
+                                match args {
+                                    Value::Cons(args) => {
+                                        let scale = args.car().as_i64().unwrap();
+                                        let ofs = args.cdr().to_string().parse::<i64>().unwrap();
+                                        Addressing::Aindexed2scaled(scale, ofs)
+                                    }
+                                    _ => panic!("Expected a cons cell"),
+                                }
+                            }
+                            "Op.addressing.Aglobal" => {
+                                let args = cons.cdr();
+                                match args {
+                                    Value::Cons(args) => {
+                                        let id = args.car().to_string().parse::<usize>().unwrap();
+                                        let ofs = args.cdr().to_string().parse::<u64>().unwrap();
+                                        Addressing::Aglobal(id, ofs)
+                                    }
+                                    _ => panic!("Expected a cons cell"),
+                                }
+                            }
+                            "Op.addressing.Abased" => {
+                                let args = cons.cdr();
+                                match args {
+                                    Value::Cons(args) => {
+                                        let id = args.car().to_string().parse::<usize>().unwrap();
+                                        let ofs = args.cdr().to_string().parse::<u64>().unwrap();
+                                        Addressing::Abased(id, ofs)
+                                    }
+                                    _ => panic!("Expected a cons cell"),
+                                }
+                            }
+                            "Op.addressing.Abasedscaled" => {
+                                let args = cons.cdr();
+                                match args {
+                                    Value::Cons(args) => {
+                                        let scale = args.car().as_i64().unwrap();
+                                        let id = args.cdr().to_string().parse::<usize>().unwrap();
+                                        let ofs = args.cdr().to_string().parse::<u64>().unwrap();
+                                        Addressing::Abasedscaled(scale, id, ofs)
+                                    }
+                                    _ => panic!("Expected a cons cell"),
+                                }
+                            }
+                            "Op.addressing.Ainstack" => {
+                                let args = cons.cdr();
+                                match args {
+                                    Value::Cons(args) => {
+                                        let ofs = args.car().as_u64().unwrap();
+                                        Addressing::Ainstack(ofs)
+                                    }
+                                    _ => panic!("Expected a cons cell"),
+                                }
+                            }
+
+                            
+                            _ => panic!("Unknown addressing type {}", sym.as_ref()),
+                        }
+                    }
+                    _ => panic!("Unknown address {}", s),
+                }
+            }
+            _ => panic!("Expected a cons cell"),
+        }
+        
+    }
 }
 
 // impl hash for f64 and f32

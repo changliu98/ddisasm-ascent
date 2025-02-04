@@ -40,24 +40,12 @@ fn test_command(command: &str, args: &[&str]) -> io::Result<ExitStatus> {
     Ok(result)
 }
 
-
-
-
-#[test]
-fn test_printMach() {
-
-    test_command("sh", &["test_scripts/test_printMach.sh"]);
-    let data = read_file("sample.mach");
-    let v = lexpr::from_str(&data);
-    test_command("rm", &["-rf", "sample.mach", "test_scripts/a.out"]);   
-}
-
 #[test]
 fn test_load_machfile(){
 
     test_command("sh", &["test_scripts/test_printMach.sh"]);
     let data = read_file("sample.mach");
-    test_command("rm", &["-rf", "sample.mach", "test_scripts/a.out"]);   
+    // test_command("rm", &["-rf", "sample.mach", "test_scripts/a.out"]);   
     let program = ast::Program::from(data);
 
 }

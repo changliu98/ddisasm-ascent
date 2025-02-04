@@ -45,7 +45,7 @@ impl From<String> for Mreg {
             "Machregs.X8" => Mreg::X8, "Machregs.X9" => Mreg::X9, "Machregs.X10" => Mreg::X10,
             "Machregs.X11" => Mreg::X11, "Machregs.X12" => Mreg::X12, "Machregs.X13" => Mreg::X13,
             "Machregs.X14" => Mreg::X14, "Machregs.X15" => Mreg::X15, "Machregs.FP0" => Mreg::FP0,
-            _ => panic!("Unknown register: {}", s),
+            _ => panic!("Unknown Mreg: {}", s),
         }
     }
 }
@@ -70,6 +70,31 @@ pub enum Instruction{
     Mjumptable(Mreg, Vec<Label>),
     Mreturn
 }
+// let print_instruction oc = function
+//   | Mgetstack (ofs, typ, reg) -> fprintf oc "(Mach.instruction.Mgetstack %s %s %s) " (string_of_ptrofs ofs) (string_of_typ typ) (string_of_mreg reg)
+//   | Msetstack (arg, ofs, typ) -> fprintf oc "(Mach.instruction.Msetstack %s %s %s) "  (string_of_mreg arg) (string_of_ptrofs ofs) (string_of_typ typ)
+//   | Mgetparam (ofs, typ, res) -> 
+//     fprintf oc "(Mach.instruction.Mgetparam %s %s %s) " 
+//         (string_of_ptrofs ofs) 
+//         (string_of_typ typ) 
+//         (string_of_mreg res)
+//   | Mop (op, args, res) ->
+//     fprintf oc "(Mach.instruction.Mop %s (%s) %s) "
+//       (string_of_operation op)
+//       (String.concat ", " (List.map string_of_mreg args))
+//       (string_of_mreg res)
+//   | Mload (chunk, addr, args, res) -> fprintf oc "(Mach.instruction.Mload %s %s (%s) %s) " (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg res)
+//   | Mstore (chunk, addr, args, src) -> fprintf oc "(Mach.instruction.Mstore %s %s (%s) %s) " (string_of_chunk chunk) (string_of_addressing addr) (String.concat ", " (List.map string_of_mreg args)) (string_of_mreg src)
+//   | Mcall (sig_, tgt) -> fprintf oc "(Mach.instruction.Mcall %s %s) " (string_of_signature sig_) (string_fn_mcall tgt)
+//   | Mtailcall (sig_, tgt) -> fprintf oc "(Mach.instruction.Mtailcall %s %s) " (string_of_signature sig_) (string_fn_mcall tgt)
+//   (* | Mbuiltin (ef, args, res) -> fprintf oc "Mbuiltin(%s (%s) %s)\n" (string_of_external_function ef) (String.concat "" (string_of_builtin_args args)) (string_of_builtin_res res) *)
+//   (* | Mlabel lbl -> fprintf oc "(Mach.instruction.Mlabel %s) " (string_of_positive lbl) *)
+//   | Mgoto lbl -> fprintf oc "(Mach.instruction.Mgoto %s) " (string_of_positive lbl)
+//   | Mcond (cond, args, lbl) -> fprintf oc "(Mach.instruction.Mcond %s (%s) %s) " (string_of_condition cond) (String.concat " " (List.map string_of_mreg args)) (string_of_positive lbl)
+//   | Mjumptable (reg, lbls) -> fprintf oc "(Mach.instruction.Mjumptable %s (%s)) " (string_of_mreg reg) (String.concat " " (List.map string_of_positive lbls))
+//   | Mreturn -> fprintf oc "(Mach.instruction.Mreturn) "
+//   | _ -> fprintf oc "(Mach.instruction.NotImplemented) "
+
 impl From<String> for Instruction {
     fn from(s: String) -> Self {
         let parsed = lexpr::from_str(&s).expect("Failed to parse");
@@ -103,6 +128,31 @@ impl From<String> for Instruction {
                                 let reg = Mreg::from(args.next().unwrap().to_string());
                                 Instruction::Mgetparam(ofs, typ, reg)
                             }
+                            "Mach.instruction.Mop" => {
+                                let args = cons.cdr();
+                                let mut args = args.list_iter().unwrap();
+                                let op = Operation::from(args.next().unwrap().to_string());
+                                let mut mregs = Vec::new();
+                                for arg in args.next().unwrap().list_iter().unwrap(){
+                                    mregs.push(Mreg::from(arg.to_string()));
+                                }
+                                let res = Mreg::from(args.next().unwrap().to_string());
+                                Instruction::Mop(op, mregs, res)
+                            }
+                            "Mach.instruction.Mload" => {
+                                let args = cons.cdr();
+                                let mut args = args.list_iter().unwrap();
+                                let chunk = MemoryChunk::from(args.next().unwrap().to_string());
+                                let addr = Addressing::from(args.next().unwrap().to_string());
+                                let mut mregs = Vec::new();
+                                for arg in args.next().unwrap().list_iter().unwrap(){
+                                    mregs.push(Mreg::from(arg.to_string()));
+                                }
+                                let res = Mreg::from(args.next().unwrap().to_string());
+                                Instruction::Mload(chunk, addr, mregs, res)
+                            }
+                            
+
                             _ => Instruction::Mreturn
                             // _ => panic!("Failed to parse {}", sym.as_ref())
                         }
@@ -156,6 +206,24 @@ pub enum MemoryChunk{
     Many32,
     Many64
 }
+impl From<String> for MemoryChunk {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "AST.memory_chunk.Mbool" => MemoryChunk::Mbool,
+            "AST.memory_chunk.Mint8signed" => MemoryChunk::Mint8signed,
+            "AST.memory_chunk.Mint8unsigned" => MemoryChunk::Mint8unsigned,
+            "AST.memory_chunk.Mint16signed" => MemoryChunk::Mint16signed,
+            "AST.memory_chunk.Mint16unsigned" => MemoryChunk::Mint16unsigned,
+            "AST.memory_chunk.Mint32" => MemoryChunk::Mint32,
+            "AST.memory_chunk.Mint64" => MemoryChunk::Mint64,
+            "AST.memory_chunk.Mfloat32" => MemoryChunk::Mfloat32,
+            "AST.memory_chunk.Mfloat64" => MemoryChunk::Mfloat64,
+            "AST.memory_chunk.Many32" => MemoryChunk::Many32,
+            "AST.memory_chunk.Many64" => MemoryChunk::Many64,
+            _ => panic!("AST.memory_chunk unknown memory chunk: {}", s),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Function{
@@ -193,15 +261,6 @@ impl From<String> for Function {
             _ => panic!("Failed to parse Function: {}", s)
         }
     }
-}
-
-#[test]
-fn test_load_function(){
-    let s = "
-        (mkfunction (mksignature () AST.xtype.Xint (mkcallconv (vararg None) (cc_unproto false) (cc_structret false)))
-        ((Mach.instruction.Mop Op.operation.Oleal(?) () Machregs.DI) (Mach.instruction.NotImplemented) (Mach.instruction.Mop Op.operation.Ointconst(0) () Machregs.AX) (Mach.instruction.Mreturn) ) 16 0 8 )
-    ";
-    let mut f = Function::from(s.to_string());
 }
 
 

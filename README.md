@@ -8,5 +8,5 @@ This repository contains the code to implement some of compcert's passes in asce
 git clone https://github.com/StarGazerM/ascent-plusplus.git
 git clone https://github.com/AbsInt/CompCert.git
 rm CompCert/backend/PrintMach.ml
-ln -s misc/PrintMach.ml CompCert/backend/PrintMach.ml
+ln -s $(pwd)/misc/printMach.ml CompCert/backend/PrintMach.ml
 ```

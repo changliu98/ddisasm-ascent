@@ -293,11 +293,6 @@ impl From<String> for Program<Function, GlobVar<MemoryChunk>> {
     }
 }
 
-#[test]
-fn test_load_program(){
-    let data = read_file("sample.mach");
-    let p = Program::from(data); 
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CallingConvention {
