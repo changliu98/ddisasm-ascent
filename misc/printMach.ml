@@ -372,6 +372,7 @@ let print_function oc id f =
   fprintf oc ")"
 
 (* Function to print a global definition *)
+(* Todo: print Gvar *)
 let print_globdef pp (ident, gd) =
   match gd with
   | Gfun(Internal f) -> print_function pp ident f

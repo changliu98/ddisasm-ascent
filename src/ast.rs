@@ -2,8 +2,9 @@ use std::hash::{Hash, Hasher};
 use lexpr::print;
 use lexpr::{Value, parse::Error, cons};
 use crate::x86::op::Ptrofs;
-use crate::x86::mach::Function;
+use crate::x86::mach::{Function, Instruction};
 use crate::util::read_file;
+use rand::Rng;
 
 pub type Ident = usize;
 
@@ -252,10 +253,6 @@ pub struct GlobVar<V> {
 }
 
 
-// Inductive globdef (F V: Type) : Type :=
-//   | Gfun (f: F)
-//   | Gvar (v: globvar V).
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GlobDef<F, V> {
     GFun(F),
@@ -271,6 +268,7 @@ pub struct Program<F, V> {
 impl From<String> for Program<Function, GlobVar<MemoryChunk>> {
     fn from(s: String) -> Self {
         let parsed = lexpr::from_str(&s).expect("Failed to parse");
+        let mut rng = rand::thread_rng();
         match parsed {
             Value::Cons(cons) => {
                 let head = cons.car();
@@ -282,8 +280,9 @@ impl From<String> for Program<Function, GlobVar<MemoryChunk>> {
                 let defs = args_iter.next().unwrap();
                 let public = args_iter.next().unwrap_or(&Value::Nil);
                 let main = args_iter.next().unwrap_or(&Value::Nil);
+                let random_number: usize = rng.gen_range(0..usize::MAX);
                 Program {
-                    prog_defs: defs.list_iter().unwrap().map(|s| (0, GlobDef::GFun(Function::from(s.to_string())))).collect(),
+                    prog_defs: defs.list_iter().unwrap().map(|s| (random_number, GlobDef::GFun(Function::from(s.to_string())))).collect(),
                     prog_public: public.list_iter().unwrap().map(|s| s.as_u64().unwrap() as usize).collect(),
                     prog_main: main.to_string().parse::<u64>().unwrap() as usize,
                 }
@@ -292,6 +291,7 @@ impl From<String> for Program<Function, GlobVar<MemoryChunk>> {
         }
     }
 }
+
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

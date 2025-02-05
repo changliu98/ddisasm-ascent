@@ -3,4 +3,4 @@ ROOT_PWD=$(pwd)
 cd $ROOT_PWD/CompCert
 make -j $(nproc) all
 cd $ROOT_PWD
-./CompCert/ccomp -dmach test_scripts/sample.c
+./CompCert/ccomp -dmach test/sample_programs/sample.c

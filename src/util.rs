@@ -28,7 +28,7 @@ pub fn read_file(filename:&str) -> String {
 
 
 // Got from chatgpt
-fn test_command(command: &str, args: &[&str]) -> io::Result<ExitStatus> {
+pub fn test_command(command: &str, args: &[&str]) -> io::Result<ExitStatus> {
     let mut cmd = Command::new(command);
     cmd.args(args);
     let result = cmd.status()?;
@@ -41,11 +41,11 @@ fn test_command(command: &str, args: &[&str]) -> io::Result<ExitStatus> {
 }
 
 #[test]
-fn test_load_machfile(){
+pub fn test_load_machfile(){
 
-    test_command("sh", &["test_scripts/test_printMach.sh"]);
+    test_command("sh", &["test/test_printMach.sh"]);
     let data = read_file("sample.mach");
-    // test_command("rm", &["-rf", "sample.mach", "test_scripts/a.out"]);   
+    test_command("rm", &["-rf", "sample.mach", "test/a.out", "a.out"]);   
     let program = ast::Program::from(data);
 
 }

@@ -227,11 +227,11 @@ impl From<String> for MemoryChunk {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Function{
-    fn_sig: Signature,
-    fn_code: Vec<Instruction>,
-    fn_stacksize: u64,
-    fn_link_ofs: Ptrofs,
-    fn_retaddr_ofs: Ptrofs
+    pub fn_sig: Signature,
+    pub fn_code: Vec<Instruction>,
+    pub fn_stacksize: u64,
+    pub fn_link_ofs: Ptrofs,
+    pub fn_retaddr_ofs: Ptrofs
 }
 impl From<String> for Function {
     fn from(s: String) -> Self {
