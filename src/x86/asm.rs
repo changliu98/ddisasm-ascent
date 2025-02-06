@@ -63,6 +63,10 @@ impl From<Crbit> for Preg {
     }
 }
 
+// Addrmode(base, ofs, cst)
+    // cst
+//     | Coq_inl n -> Coq_inl(Z.add n delta)
+//     | Coq_inr(id, n) -> Coq_inr(id, Integers.Ptrofs.add n delta))
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Addrmode {

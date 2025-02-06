@@ -61,11 +61,8 @@ let rec regs pp = function
   | [r] -> reg pp r
   | r1::rl -> fprintf pp "%a %a" reg r1 regs rl
 
-let ros pp = function
-  | Coq_inl r -> reg pp r
-  | Coq_inr s -> fprintf pp "\"%s\"" (extern_atom s)
 
-  let string_of_positive p = string_of_int (P.to_int p)
+let string_of_positive p = string_of_int (P.to_int p)
 
 let string_of_ptrofs ofs = string_of_int (Z.to_int ofs)
 

@@ -4,6 +4,7 @@ Record function: Type := mkfunction
     fn_stacksize: Z;
     fn_link_ofs: ptrofs;
     fn_retaddr_ofs: ptrofs }.
+
 Definition code := list instruction.
 Inductive instruction: Type :=
   | Mgetstack: ptrofs -> typ -> mreg -> instruction
