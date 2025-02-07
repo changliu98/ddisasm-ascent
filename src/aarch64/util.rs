@@ -110,7 +110,7 @@ pub mod automaton {
     // ascent version
     ascent! {
         pub struct ImmAutomaton;
-        extern database AutomatonTable auto;
+        extern database AutomatonTable auto();
 
         relation next(State, bool, State) in auto;
         relation accepting(State) in auto;

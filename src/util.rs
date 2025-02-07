@@ -12,13 +12,6 @@ use std::any::Any;
 use crate::x86::mach;
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Either<A, B> {
-    Left(A),
-    Right(B),
-}
-
-
 pub fn read_file(filename:&str) -> String {
     let mut file = fs::File::open(filename).unwrap();
     let mut contents = String::new();

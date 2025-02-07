@@ -70,9 +70,9 @@ impl From<Crbit> for Preg {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Addrmode {
-    base: Option<Ireg>,
-    ofs: Option<(Ireg, i64)>,
-    constant: Either<i64, (Ident, Ptrofs)>,
+    pub base: Option<Ireg>,
+    pub ofs: Option<(Ireg, i64)>,
+    pub constant: Either<i64, (Ident, Ptrofs)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
