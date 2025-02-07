@@ -24,7 +24,7 @@ ascent! {
     
     // ax_is_parent: bool, id of mach_instruction
     relation ax_is_parent(usize);
-    index ax_is_parent (0,);
+    index ax_is_parent ();
 
     // id + macho instruction
     relation get_stack(usize, Ptrofs, Typ, Mreg);
@@ -42,7 +42,10 @@ ascent! {
     index get_param (2,);
     
 
-    relation op(usize, Operation, Vec<Mreg>, Mreg); 
+    relation op(usize, Operation, Vec<Mreg>, Mreg);
+    index op (0,);
+    index op (1,);
+
     relation load(usize, MemoryChunk, Addressing, Vec<Mreg>, Mreg);
     relation store(usize, MemoryChunk, Addressing, Vec<Mreg>, Mreg);
     relation call(usize, Signature, Either<Mreg, Ident>);
@@ -76,7 +79,8 @@ ascent! {
     relation get_stack(usize, Ptrofs, Typ, Mreg) in mach_o;
     relation set_stack(usize, Mreg, Ptrofs, Typ) in mach_o;
     relation get_param(usize, Ptrofs, Typ, Mreg) in mach_o;
-    relation ax_is_parent(usize);
+    relation op(usize, Operation, Vec<Mreg>, Mreg) in mach_o;
+    relation ax_is_parent(usize) in mach_o;
 
     relation ir(Preg, Ireg);
     relation preg_of(Mreg, Preg);
@@ -125,7 +129,7 @@ ascent! {
     relation isst0(Preg, Preg);
     isst0(preg, preg) <-- preg_of(Mreg::FP0, preg);
 
-    relation mk_mov(Preg, Preg, usize);
+    relation mk_mov(Preg, Preg);
 
     relation tranl_op(Operation, Vec<Mreg>, Mreg, usize);
 
@@ -145,7 +149,7 @@ ascent! {
     // | _, _ => Error (msg "Asmgen.loadind")
     // end.
   
-    macro loadind($mreg: ident, $preg: ident, $r: ident, $base: expr, $a:ident, $ptrofs: ident, $pred: ident) {
+    macro load_store_ind($mreg: ident, $preg: ident, $r: ident, $base: expr, $a:ident, $ptrofs: ident, $pred: ident) {
         preg_of($mreg, $preg),
         $pred($preg, $r),
         let $a =Addrmode{
@@ -160,26 +164,26 @@ ascent! {
     relation pmovl_rm(Ireg, Addrmode);
     pmovl_rm(r, a) <-- 
         mach_o.get_stack(id, ptrofs, Typ::Tint, mreg),
-        loadind!(mreg, preg, r, Ireg::RSP, a, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RSP, a, ptrofs, ir);
 
         
     relation pmovq_rm(Ireg, Addrmode);
     pmovq_rm(r, addr) <-- 
         mach_o.get_stack(id, ptrofs, Typ::Tlong, mreg),
-        loadind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
 
 
     relation pmov_rm_a(Ireg, Addrmode);
     pmov_rm_a(r, addr) <--
         archi_ptr64(_),
         mach_o.get_stack(id, ptrofs, Typ::Tlong, mreg),
-        loadind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
 
 
     pmov_rm_a(r, addr) <--
         !archi_ptr64(_),
         mach_o.get_stack(id, ptrofs, Typ::Tlong, mreg),
-        loadind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
 
 
     // | Msetstack src ofs ty =>
@@ -187,25 +191,25 @@ ascent! {
     relation pmovl_mr(Addrmode, Ireg);
     pmovl_mr(addr, r) <--
         mach_o.set_stack(id, src, ptrofs, Typ::Tint),
-        loadind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
 
     
     relation pmovq_mr(Addrmode, Ireg);
     pmovq_mr(addr, r) <--
         mach_o.set_stack(id, mreg, ptrofs, Typ::Tlong),
-        loadind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
 
     relation pmov_mr_a(Addrmode, Ireg);
     pmov_mr_a(addr, r) <--
         archi_ptr64(_),
         mach_o.set_stack(id, mreg, ptrofs, Typ::Tany64),
-        loadind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
 
 
     pmov_mr_a(addr, r) <--
         !archi_ptr64(_),
         mach_o.set_stack(id, mreg, ptrofs, Typ::Tany32),
-        loadind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RSP, addr, ptrofs, ir);
 
     // | Mgetparam ofs ty dst =>
     // if ax_is_parent then
@@ -216,82 +220,130 @@ ascent! {
     // match ty, preg_of dst with
     // | Tint, IR r => OK (Pmovl_rm r a :: k)
     pmovl_rm(r, a) <-- 
-        ax_is_parent(id),
+        mach_o.ax_is_parent(id),
         mach_o.get_param(id, ptrofs, Typ::Tint, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, ir);
     // | Tlong, IR r => OK (Pmovq_rm r a :: k)
     pmovq_rm(r, a) <--
-        ax_is_parent(id),
+    mach_o.ax_is_parent(id),
         mach_o.get_param(id, ptrofs, Typ::Tlong, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, ir);
     // | Tsingle, FR r => OK (Pmovss_fm r a :: k)
     relation pmovss_fm(Freg, Addrmode);
     pmovss_fm(r, a) <--
-        ax_is_parent(id),
+        mach_o.ax_is_parent(id),
         mach_o.get_param(id, ptrofs, Typ::Tlong, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, fr);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, fr);
     // | Tsingle, ST0  => OK (Pflds_m a :: k)
     relation pflds_m(Addrmode);
     pflds_m(a) <--
-        ax_is_parent(id),
+        mach_o.ax_is_parent(id),
         mach_o.get_param(id, ptrofs, Typ::Tsingle, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, isst0);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, isst0);
     // | Tfloat, FR r => OK (Pmovsd_fm r a :: k)
     relation pmovsd_fm(Freg, Addrmode);
     pmovsd_fm(r, a) <--
-        ax_is_parent(id),
+        mach_o.ax_is_parent(id),
         mach_o.get_param(id, ptrofs, Typ::Tfloat, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, fr);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, fr);
     // | Tfloat, ST0  => OK (Pfldl_m a :: k)
     relation pfldl_m(Addrmode);
     pfldl_m(a) <--
-        ax_is_parent(id),
+        mach_o.ax_is_parent(id),
         mach_o.get_param(id, ptrofs, Typ::Tfloat, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, isst0);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, isst0);
     // | Tany32, IR r => if Archi.ptr64 then Error (msg "Asmgen.loadind1") else OK (Pmov_rm_a r a :: k)
     relation pmov_rm_a(Ireg, Addrmode);
     pmov_rm_a(r, a) <--
         archi_ptr64(_),
         mach_o.get_param(id, ptrofs, Typ::Tany64, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, ir);
     // | Tany64, IR r => if Archi.ptr64 then OK (Pmov_rm_a r a :: k) else Error (msg "Asmgen.loadind2")
     pmov_rm_a(r, a) <--
         !archi_ptr64(_),
         mach_o.get_param(id, ptrofs, Typ::Tany32, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, ir);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, ir);
     // | Tany64, FR r => OK (Pmovsd_fm_a r a :: k)
     relation pmovsd_fm_a(Freg, Addrmode);
     pmovsd_fm_a(r, a) <--
         mach_o.get_param(id, ptrofs, Typ::Tany64, mreg),
-        loadind!(mreg, preg, r, Ireg::RAX, a, ptrofs, fr);
+        load_store_ind!(mreg, preg, r, Ireg::RAX, a, ptrofs, fr);
     // | _, _ => Error (msg "Asmgen.loadind")
     // end.
 
         // else
     //   (do k1 <- loadind RAX ofs ty dst k;
     //    loadind RSP f.(fn_link_ofs) Tptr AX k1)
-    
-    
+    // Todo
 
-    // Definition loadind (base: ireg) (ofs: ptrofs) (ty: typ) (dst: mreg) (k: code) :=
-    // let a := Addrmode (Some base) None (inl _ (Ptrofs.unsigned ofs)) in
-    // match ty, preg_of dst with
-    // | Tint, IR r => OK (Pmovl_rm r a :: k)
+    // | Mop op args res =>
+    // transl_op op args res k
+
+    // | Omove, a1 :: nil =>
+    // mk_mov (preg_of res) (preg_of a1) k
+    mk_mov(preg_of_res, preg_of_a1) <--
+        // relation op(usize, Operation, Vec<Mreg>, Mreg);
+        mach_o.op(id, Operation::Omove, args, res),
+        if (args.len() == 1),
+        preg_of(res, preg_of_res),
+        preg_of(args[0], preg_of_a1);
+    
+    // | Ointconst n, nil =>
+    // do r <- ireg_of res;
+    // OK ((if Int.eq_dec n Int.zero then Pxorl_r r else Pmovl_ri r n) :: k)
+    relation pxorl_r(Ireg);
+
+    pxorl_r(r) <--
+        mach_o.op(id, Operation::Ointconst(0), args, res),
+        ir(preg_od_res, r),
+        preg_of(res,preg_od_res);
+
+    relation pmovl_ri(Ireg, i64);
+    pmovl_ri(r, n) <--
+        mach_o.op(id, ?Operation::Ointconst(n), args, res),
+        if n != 0,
+        ir(preg_od_res, r),
+        preg_of(res,preg_od_res);
+
+    relation pxorq_r(Ireg);
+    pxorq_r(r) <--
+        mach_o.op(id, ?Operation::Olongconst(n), args, res),
+        if n == 0,
+        ir(preg_od_res, r),
+        preg_of(res,preg_od_res);
+    
+    relation pmovq_ri(Ireg, i64);
+    pmovq_ri(r, n) <--
+        mach_o.op(id, ?Operation::Olongconst(n), args, res),
+        if n != 0,
+        ir(preg_od_res, r),
+        preg_of(res,preg_od_res);
+
+    
 
 }
 
 #[test]
-fn translate_mach_asm() {
+fn translate_mach_asm_get_stack() {
     let mut macho = MachO::default();
     let mut prog = Asm::default();
     // get_param(usize, Ptrofs, Typ, Mreg);
     macho.get_stack = vec![(0, 0, Typ::Tint, Mreg::AX),
                             (1, 1, Typ::Tlong, Mreg::CX)].into_iter().collect();
+    macho.ax_is_parent = vec![(0,)].into_iter().collect();
+    macho.run();
+    prog.run(&macho);
+    println!("{:?}", prog.pflds_m);
+}
+
+#[test]
+fn translate_mach_asm_set_stack() {
+    let mut macho = MachO::default();
+    let mut prog = Asm::default();
+    // get_param(usize, Ptrofs, Typ, Mreg);
     macho.set_stack = vec![(0, Mreg::AX, 0, Typ::Tint),
                             (1, Mreg::CX, 1, Typ::Tlong)].into_iter().collect();
-    macho.get_param = vec![(0, 0, Typ::Tsingle, Mreg::FP0),
-                            (1, 1, Typ::Tlong, Mreg::CX)].into_iter().collect();
-    prog.ax_is_parent = vec![(0,)].into_iter().collect();
+    macho.ax_is_parent = vec![(0,)].into_iter().collect();
     macho.run();
     prog.run(&macho);
     println!("{:?}", prog.pflds_m);

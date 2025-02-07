@@ -177,7 +177,7 @@ impl std::hash::Hash for F32 {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Operation {
-    Omove(Mreg),
+    Omove,
     Ointconst(i64),
     Olongconst(i64),
     Ofloatconst(F64),
