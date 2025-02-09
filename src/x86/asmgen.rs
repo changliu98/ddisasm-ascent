@@ -8,7 +8,7 @@ use crate::ast::{Signature, Typ};
 use either::Either;
 use crate::x86::reg::Mreg;
 use crate::ast::{Ident, MemoryChunk, ExternalFunction, BuiltinArg, BuiltinRes};
-use crate::x86::op::{Addressing, Ptrofs, Operation, Condition};
+use crate::x86::op::{Addressing, Ptrofs, Operation, Condition, F64, F32};
 
 use super::asm::{Ireg, Preg, Freg, Addrmode};
 
@@ -45,6 +45,7 @@ ascent! {
     relation op(usize, Operation, Vec<Mreg>, Mreg);
     index op (0,);
     index op (1,);
+    index op ();
 
     relation load(usize, MemoryChunk, Addressing, Vec<Mreg>, Mreg);
     relation store(usize, MemoryChunk, Addressing, Vec<Mreg>, Mreg);
@@ -301,25 +302,80 @@ ascent! {
     relation pmovl_ri(Ireg, i64);
     pmovl_ri(r, n) <--
         mach_o.op(id, ?Operation::Ointconst(n), args, res),
-        if n != 0,
+        if *n != 0,
         ir(preg_od_res, r),
         preg_of(res,preg_od_res);
 
     relation pxorq_r(Ireg);
     pxorq_r(r) <--
         mach_o.op(id, ?Operation::Olongconst(n), args, res),
-        if n == 0,
+        if *n == 0,
         ir(preg_od_res, r),
         preg_of(res,preg_od_res);
     
     relation pmovq_ri(Ireg, i64);
     pmovq_ri(r, n) <--
         mach_o.op(id, ?Operation::Olongconst(n), args, res),
-        if n != 0,
+        if *n != 0,
         ir(preg_od_res, r),
         preg_of(res,preg_od_res);
 
+    // | Ofloatconst f, nil =>
+    // do r <- freg_of res;
+    // OK ((if Float.eq_dec f Float.zero then Pxorpd_f r else Pmovsd_fi r f) :: k)
+    relation pxorpd_f(Freg);
+    pxorpd_f(r) <--
+        mach_o.op(id, ?Operation::Ofloatconst(f), args, res),
+        if *f != F64::from(0.0),
+        preg_of(res, preg_od_res).,
+        fr(preg_od_res, r);
+
+    relation pmovsd_fi(Freg, F64);
+    pmovsd_fi(r, f) <--
+        mach_o.op(id, ?Operation::Ofloatconst(f), args, res),
+        if *f != F64::from(0.0),
+        preg_of(res, preg_od_res).,
+        fr(preg_od_res, r);
+
+    relation pxorps_f(Freg);
+    pxorps_f(r) <--
+        mach_o.op(id, ?Operation::Osingleconst(f), args, res),
+        if *f == F32::from(0.0),
+        preg_of(res, preg_od_res).,
+        fr(preg_od_res, r);
     
+    relation pmovss_fi(Freg, F32);
+    pmovss_fi(r, f) <--
+        mach_o.op(id, ?Operation::Osingleconst(f), args, res),
+        if *f != F32::from(0.0),
+        preg_of(res, preg_od_res).,
+        fr(preg_od_res, r);
+
+    // | Oindirectsymbol id, nil =>
+    // do r <- ireg_of res;
+    // OK (Pmov_rs r id :: k)
+    
+    relation pmov_rs(Ireg, Ident);
+    pmov_rs(r, id) <--
+        mach_o.op(opid, ?Operation::Oindirectsymbol(id), args, res),
+        ir(preg_od_res, r),
+        preg_of(res,preg_od_res);
+
+    // Definition mk_intconv (mk: ireg -> ireg -> instruction) (rd rs: ireg) (k: code) :=
+    // if Archi.ptr64 || low_ireg rs then
+    //   OK (mk rd rs :: k)
+    // else
+    //   OK (Pmov_rr RAX rs :: mk rd RAX :: k).
+
+
+    //     | Ocast8signed, a1 :: nil =>
+    //     do r1 <- ireg_of a1; do r <- ireg_of res; mk_intconv Pmovsb_rr r r1 k
+    // | Ocast8unsigned, a1 :: nil =>
+    //     do r1 <- ireg_of a1; do r <- ireg_of res; mk_intconv Pmovzb_rr r r1 k
+    // | Ocast16signed, a1 :: nil =>
+    //     do r1 <- ireg_of a1; do r <- ireg_of res; OK (Pmovsw_rr r r1 :: k)
+
+    // relation 
 
 }
 

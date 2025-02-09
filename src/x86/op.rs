@@ -156,18 +156,30 @@ impl std::hash::Hash for F64 {
     }
 }
 
-// impl eq if < 1e-6
 impl PartialEq for F64 {
     fn eq(&self, other: &Self) -> bool {
-        (self.0 - other.0).abs() < 1e-6
+        self.0.to_bits() == other.0.to_bits() // Strict equality, no tolerance
     }
 }
+
 impl Eq for F64 {}
+
+impl From<f64> for F64 {
+    fn from(f: f64) -> Self {
+        F64(f)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct F32(f32);
 
 impl Eq for F32 {}
+
+impl From<f32> for F32 {
+    fn from(f: f32) -> Self {
+        F32(f)
+    }
+}
 
 impl std::hash::Hash for F32 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
