@@ -263,4 +263,5 @@ pub enum Instruction {
     Psqrtsd(Freg, Freg),
     Psubl_ri(Ireg, i64),
     Psubq_ri(Ireg, i64),
+    Placeholder(Ireg, Ireg),
 }
